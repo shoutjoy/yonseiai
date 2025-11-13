@@ -318,6 +318,23 @@
             max-width: 80%;
             word-wrap: break-word;
         }
+        
+        .message strong { /* Used for sender name */
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+            color: #555;
+        }
+        
+        .message.local strong {
+            color: #fdfdfd;
+        }
+        
+        .message img {
+            max-width: 100%;
+            border-radius: 8px;
+            cursor: pointer;
+        }
 
         .message.local {
             background-color: #3498db;
@@ -365,7 +382,7 @@
             margin-right: 0.5rem;
         }
 
-        #chat-input-area button, #file-input-label {
+        #chat-input-area button, #file-input-label, #image-input-label {
             background: none;
             border: none;
             font-size: 1.5rem;
@@ -375,11 +392,11 @@
             padding: 0 0.5rem;
         }
         
-        #chat-input-area button:hover, #file-input-label:hover {
+        #chat-input-area button:hover, #file-input-label:hover, #image-input-label:hover {
             color: #3498db;
         }
         
-        #file-input {
+        #file-input, #image-input {
             display: none;
         }
 
@@ -448,6 +465,52 @@
         }
         #show-chat-btn:hover {
             background-color: #2980b9;
+        }
+        
+        /* 녹화 옵션 모달 */
+        #record-options-modal {
+            position: fixed;
+            bottom: 90px; /* 컨트롤 바 위 */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            z-index: 1003;
+            padding: 1.5rem;
+            width: 300px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+        
+        #record-options-modal h4 {
+            margin: 0 0 0.5rem 0;
+            text-align: center;
+            color: #2c3e50;
+        }
+        
+        #record-options-modal button {
+            padding: 0.8rem;
+            border: 1px solid #bdc3c7;
+            background-color: #ecf0f1;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: background-color 0.3s;
+        }
+        
+        #record-options-modal button:hover {
+            background-color: #dfe6e9;
+        }
+        
+        #record-options-modal button.warning {
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+        #record-options-modal button.warning:hover {
+            background-color: #fadbd8;
         }
         
         /* 유틸리티 */
@@ -522,7 +585,7 @@
                 <div id="remote-video-wrapper" class="video-wrapper">
                     <video id="remote-video" playsinline autoplay></video>
                     <div class="video-controls">
-                        <button id="remote-fullscreen-btn" title="전체화면">FS</button>
+                        <!-- <button id="remote-fullscreen-btn" title="전체화면">FS</button> -->
                         <button id="remote-capture-btn" title="캡처">📸</button>
                     </div>
                 </div>
@@ -530,7 +593,7 @@
                 <div id="local-video-wrapper" class="video-wrapper">
                     <video id="local-video" playsinline autoplay muted></video>
                     <div class="video-controls">
-                        <button id="local-fullscreen-btn" title="전체화면">FS</button>
+                        <!-- <button id="local-fullscreen-btn" title="전체화면">FS</button> -->
                         <button id="local-capture-btn" title="캡처">📸</button>
                     </div>
                 </div>
@@ -541,6 +604,7 @@
                 <div id="chat-header">
                     <span>채팅</span>
                     <div id="chat-header-buttons">
+                        <button id="popout-chat-btn" title="새 창">↗️</button>
                         <button id="toggle-chat-size-btn" title="확대/축소">↔</button>
                         <button id="hide-chat-btn" title="숨기기">X</button>
                     </div>
@@ -551,6 +615,8 @@
                 <div id="chat-input-area">
                     <input type="file" id="file-input">
                     <label for="file-input" id="file-input-label" title="파일 첨부">📎</label>
+                    <input type="file" id="image-input" accept="image/*">
+                    <label for="image-input" id="image-input-label" title="이미지 첨부">🖼️</label>
                     <input type="text" id="chat-input" placeholder="메시지 입력...">
                     <button id="send-chat-btn" title="전송">➤</button>
                 </div>
@@ -568,6 +634,15 @@
             <button id="whiteboard-btn" class="control-btn" title="판서">✏️</button>
             <button id="end-call-btn" class="control-btn" title="통화 종료">📞</button>
         </div>
+    </div>
+    
+    <!-- 녹화 옵션 모달 -->
+    <div id="record-options-modal" class="hidden">
+        <h4>녹화 대상 선택</h4>
+        <button data-record-target="remote">상대방 화면</button>
+        <button data-record-target="local">내 화면 / 공유 화면</button>
+        <button data-record-target="combined">전체 (합성) 화면</button>
+        <button id="cancel-record-btn" class="warning">취소</button>
     </div>
     
     <!-- 채팅 보이기 버튼 (숨겨져 있음) -->
@@ -593,6 +668,15 @@
         let videoDevices = [];
         let currentVideoDeviceIndex = 0;
         let whiteboardWindow = null;
+        let chatWindow = null;
+        let remoteName = '상대방'; // 원격 사용자 이름
+        
+        // 녹화 합성용
+        let combinedCanvas = null;
+        let combinedCtx = null;
+        let animationFrameId = null;
+        let audioContext = null;
+        let audioDestination = null;
         
         // 파일 청크 관련
         const CHUNK_SIZE = 64 * 1024; // 64KB
@@ -844,9 +928,12 @@
                     const metadata = dataConnection.metadata;
                     if (metadata.pass === currentMeetingPass) {
                         console.log(`학생(${metadata.name}) 인증 성공`);
+                        remoteName = metadata.name; // 학생 이름 저장
                         // 인증 성공 메시지 전송
                         dataConnection.send({ type: 'auth_success' });
-                        addChatMessage(`'${metadata.name}'님이 접속했습니다.`, 'system');
+                        // 교사 이름 전송
+                        dataConnection.send({ type: 'name_handshake', name: myName });
+                        addChatMessage(`'${remoteName}'님이 접속했습니다.`, 'system');
                         
                         // 인증 성공 후 교사가 학생에게 영상 통화 시작
                         console.log(`학생(${dataConnection.peer})에게 영상 통화 시도...`);
@@ -876,18 +963,22 @@
                         peer.destroy();
                         location.reload();
                         break;
+                    case 'name_handshake': // 학생이 받음
+                        remoteName = data.name; // 교사 이름 저장
+                        break;
                     case 'chat':
-                        addChatMessage(data.message, 'remote');
+                        addChatMessage(data.message, 'remote', data.sender);
                         break;
                     case 'file_meta': // 파일 전송 시작 (메타데이터)
                         incomingFileData = {
                             name: data.name,
                             size: data.size,
-                            type: data.type
+                            type: data.type,
+                            sender: data.sender // 보낸 사람 이름 저장
                         };
                         incomingFileChunks = [];
                         receivedBytes = 0;
-                        addChatMessage(`파일 수신 중: ${data.name} (${(data.size / 1024 / 1024).toFixed(2)} MB)`, 'system');
+                        addChatMessage(`'${data.sender}'님으로부터 파일 수신 중: ${data.name} (${(data.size / 1024 / 1024).toFixed(2)} MB)`, 'system');
                         break;
                     case 'file_chunk': // 파일 조각 (청크)
                         incomingFileChunks.push(data.chunk);
@@ -919,18 +1010,28 @@
             try {
                 const fileBlob = new Blob(incomingFileChunks, { type: incomingFileData.type });
                 const url = URL.createObjectURL(fileBlob);
+                const senderName = incomingFileData.sender || '상대방';
                 
-                const messageDiv = document.createElement('div');
-                messageDiv.classList.add('message', 'remote');
+                let contentElement;
                 
-                const downloadLink = document.createElement('a');
-                downloadLink.href = url;
-                downloadLink.download = incomingFileData.name;
-                downloadLink.textContent = `[파일 다운로드] ${incomingFileData.name}`;
+                if (incomingFileData.type.startsWith('image/')) {
+                    // It's an image, render it
+                    contentElement = document.createElement('img');
+                    contentElement.src = url;
+                    contentElement.style.maxWidth = '100%';
+                    contentElement.style.borderRadius = '8px';
+                    contentElement.style.cursor = 'pointer';
+                    contentElement.onclick = () => window.open(url);
+                    // img.onload = () => { URL.revokeObjectURL(url); } // Let's not revoke
+                } else {
+                    // It's a file, create download link
+                    contentElement = document.createElement('a');
+                    contentElement.href = url;
+                    contentElement.download = incomingFileData.name;
+                    contentElement.textContent = `[파일 다운로드] ${incomingFileData.name}`;
+                }
                 
-                messageDiv.appendChild(downloadLink);
-                messagesLog.appendChild(messageDiv);
-                messagesLog.scrollTop = messagesLog.scrollHeight;
+                addChatMessage(contentElement, 'remote', senderName);
                 
                 // 초기화
                 incomingFileData = {};
@@ -981,11 +1082,81 @@
         };
         
         document.getElementById('show-chat-btn').onclick = () => {
-            chatContainer.classList.remove('hidden');
-            mainContent.classList.remove('chat-hidden');
-            showChatBtn.classList.add('hidden');
+            const isTheater = videoContainer.classList.contains('theater-mode');
+            
+            if (isTheater) {
+                // 확대 모드에서는 새 창으로 띄우기
+                document.getElementById('popout-chat-btn').click();
+                showChatBtn.classList.add('hidden'); // 팝업 띄웠으니 버튼 숨김
+            } else {
+                // 일반 모드에서는 인라인으로 표시
+                chatContainer.classList.remove('hidden');
+                mainContent.classList.remove('chat-hidden');
+                showChatBtn.classList.add('hidden');
+            }
         };
         
+        // 채팅창 팝업
+        document.getElementById('popout-chat-btn').onclick = () => {
+            if (chatWindow && !chatWindow.closed) {
+                chatWindow.focus();
+                return;
+            }
+            
+            // 메인 채팅창 숨기기
+            chatContainer.classList.add('hidden');
+            mainContent.classList.add('chat-hidden');
+            showChatBtn.classList.add('hidden'); // 팝업 띄웠으니 숨김 버튼도 숨김
+            
+            chatWindow = window.open('', 'Chat', 'width=450,height=700,menubar=no,toolbar=no,status=no,scrollbars=no');
+            if (chatWindow) {
+                chatWindow.document.write(getChatPopupHTML());
+                chatWindow.document.close();
+                
+                // 팝업이 닫힐 때
+                chatWindow.onbeforeunload = () => {
+                    chatContainer.classList.remove('hidden');
+                    mainContent.classList.remove('chat-hidden');
+                    // showChatBtn는 hide-btn을 눌렀을 때만 보이도록 유지
+                    chatWindow = null;
+                };
+            } else {
+                alert("팝업 창이 차단되었습니다. 팝업을 허용해 주세요.");
+                // 팝업 실패 시 UI 원상복구
+                chatContainer.classList.remove('hidden');
+                mainContent.classList.remove('chat-hidden');
+            }
+        };
+        
+        // 팝업 창에서 호출할 함수
+        function sendChatMessageFromPopup(message) {
+            if (!message.trim() || !dataConnection) return;
+            
+            dataConnection.send({ type: 'chat', message: message, sender: myName });
+            addChatMessage(message, 'local', myName); 
+        }
+        
+        // 팝업 창에서 호출할 함수 (파일/이미지)
+        function sendFileFromPopup(file) {
+             // 1. 로컬 프리뷰 (이미지인 경우)
+            if (file.type.startsWith('image/')) {
+                const localReader = new FileReader();
+                localReader.onload = (event) => {
+                    const img = document.createElement('img');
+                    img.src = event.target.result;
+                    img.style.maxWidth = '100%';
+                    img.style.borderRadius = '8px';
+                    img.style.cursor = 'pointer';
+                    img.onclick = () => window.open(event.target.result);
+                    addChatMessage(img, 'local', myName); // 메인 및 팝업창에 동시 추가
+                };
+                localReader.readAsDataURL(file);
+            }
+            
+            // 2. 파일 전송
+            sendFile(file);
+        }
+
         // 채팅 메시지 전송
         document.getElementById('send-chat-btn').onclick = sendChatMessage;
         chatInput.onkeyup = (e) => {
@@ -996,18 +1167,54 @@
             const message = chatInput.value;
             if (!message.trim() || !dataConnection) return;
             
-            dataConnection.send({ type: 'chat', message: message });
-            addChatMessage(message, 'local');
+            dataConnection.send({ type: 'chat', message: message, sender: myName });
+            addChatMessage(message, 'local', myName);
             chatInput.value = '';
         }
 
         // 채팅 메시지 UI에 추가
-        function addChatMessage(message, type) {
+        function addChatMessage(content, type, senderName = null) {
             const msgDiv = document.createElement('div');
             msgDiv.classList.add('message', type);
-            msgDiv.textContent = message; // textContent로 XSS 방지
-            messagesLog.appendChild(msgDiv);
-            messagesLog.scrollTop = messagesLog.scrollHeight;
+            
+            let contentElement;
+            
+            if (typeof content === 'string') {
+                contentElement = document.createTextNode(content);
+            } else {
+                contentElement = content.cloneNode(true); // DOM 노드 복사
+                if (contentElement.tagName === 'IMG') {
+                     // 팝업에 전송될 이미지 소스(blob:)가 유효하도록
+                    contentElement.src = content.src;
+                    contentElement.onclick = () => window.open(content.src);
+                } else if (contentElement.tagName === 'A') {
+                    contentElement.href = content.href;
+                }
+            }
+
+            if (senderName && type !== 'system') { // Chat, File, Image message
+                const nameSpan = document.createElement('strong');
+                nameSpan.textContent = senderName;
+                msgDiv.appendChild(nameSpan);
+            }
+            
+            msgDiv.appendChild(contentElement);
+
+            // 팝업 창이 열려있으면 팝업으로 메시지 전송
+            if (chatWindow && !chatWindow.closed) {
+                try {
+                    // cloneNode로 생성한 div를 outerHTML로 전달
+                    chatWindow.addMessageToPopup(msgDiv.outerHTML);
+                } catch (e) {
+                    console.error("팝업 창 메시지 전송 실패:", e);
+                }
+            }
+            
+            // 메인 채팅창 (팝업이 아닐 때만 보이도록)
+            if (!chatWindow || chatWindow.closed) {
+                messagesLog.appendChild(msgDiv);
+                messagesLog.scrollTop = messagesLog.scrollHeight;
+            }
         }
 
         // 파일 전송 (로직 분리)
@@ -1023,18 +1230,19 @@
                  return;
             }
             
-            addChatMessage(`파일 전송 중: ${file.name}`, 'local');
+            addChatMessage(`파일 전송 중: ${file.name}`, 'local', myName);
             
             // 1. 메타데이터 전송
             dataConnection.send({
                 type: 'file_meta',
                 name: file.name,
                 size: file.size,
-                type: file.type
+                type: file.type,
+                sender: myName // 보낸 사람 이름 추가
             });
 
             // 2. 파일 청크 전송
-            const reader = new new FileReader();
+            const reader = new FileReader(); // "new new" 오타 수정
             reader.onload = (event) => {
                 const buffer = event.target.result;
                 let offset = 0;
@@ -1067,6 +1275,29 @@
             const file = e.target.files[0];
             sendFile(file);
             e.target.value = null; // 동일 파일 재선택 가능하도록
+        };
+        
+        // 이미지 입력(input) 변경 시
+        document.getElementById('image-input').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 1. Show local preview
+            const localReader = new FileReader();
+            localReader.onload = (event) => {
+                const img = document.createElement('img');
+                img.src = event.target.result;
+                img.style.maxWidth = '100%';
+                img.style.borderRadius = '8px';
+                img.style.cursor = 'pointer';
+                img.onclick = () => window.open(event.target.result);
+                addChatMessage(img, 'local', myName); 
+            };
+            localReader.readAsDataURL(file);
+
+            // 2. Send file using existing logic
+            sendFile(file);
+            e.target.value = null; 
         };
         
         // 판서 도구에서 호출할 캡처 전송 함수
@@ -1214,59 +1445,164 @@
         };
 
         // 녹화
+        const recordModal = document.getElementById('record-options-modal');
+        
         document.getElementById('record-btn').onclick = () => {
-            if (!remoteStream) {
-                alert("상대방의 영상이 연결되지 않아 녹화할 수 없습니다.");
-                return;
-            }
-            
-            const btn = document.getElementById('record-btn');
             if (isRecording) {
                 // 녹화 중지
-                mediaRecorder.stop();
-                isRecording = false;
-                btn.classList.remove('off'); // 빨간색 중지
-                btn.innerHTML = '🔴';
+                stopRecording();
             } else {
-                // 녹화 시작
-                recordedChunks = [];
-                
-                // (고급: 로컬과 원격을 합치려면 Canvas에 그려야 함)
-                // 여기서는 간단하게 원격 스트림만 녹화
-                const options = { mimeType: 'video/webm; codecs=vp9' };
-                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                     options.mimeType = 'video/webm; codecs=vp8';
-                     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                         options.mimeType = 'video/webm';
-                     }
+                // 녹화 옵션 표시
+                if (!remoteStream || !localStream) {
+                    alert("로컬 및 원격 비디오가 모두 연결되어야 녹화를 시작할 수 있습니다.");
+                    return;
                 }
-                
-                mediaRecorder = new MediaRecorder(remoteStream, options);
-
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        recordedChunks.push(event.data);
-                    }
-                };
-
-                mediaRecorder.onstop = () => {
-                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `recording_${new Date().toISOString()}.webm`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                };
-
-                mediaRecorder.start();
-                isRecording = true;
-                btn.classList.add('off'); // 녹화 중 (빨간색)
-                btn.innerHTML = '■';
+                recordModal.classList.remove('hidden');
             }
         };
+        
+        document.getElementById('cancel-record-btn').onclick = () => {
+            recordModal.classList.add('hidden');
+        };
+
+        recordModal.querySelectorAll('button[data-record-target]').forEach(btn => {
+            btn.onclick = () => {
+                const target = btn.getAttribute('data-record-target');
+                recordModal.classList.add('hidden');
+                startRecording(target);
+            };
+        });
+        
+        function startRecording(target) {
+            let streamToRecord = null;
+            let combinedAudioTrack = null;
+            recordedChunks = [];
+            
+            const options = { mimeType: 'video/webm; codecs=vp9' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                 options.mimeType = 'video/webm; codecs=vp8';
+                 if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                     options.mimeType = 'video/webm';
+                 }
+            }
+
+            try {
+                if (target === 'remote') {
+                    streamToRecord = remoteStream;
+                } else if (target === 'local') {
+                    streamToRecord = localStream;
+                } else if (target === 'combined') {
+                    // 1. 비디오 합성 (Canvas)
+                    combinedCanvas = document.createElement('canvas');
+                    const w = localVideo.videoWidth || 1280;
+                    const h = localVideo.videoHeight || 720;
+                    combinedCanvas.width = w * 2;
+                    combinedCanvas.height = h;
+                    combinedCtx = combinedCanvas.getContext('2d');
+                    
+                    function drawCombinedFrame() {
+                        if (!isRecording) return;
+                        combinedCtx.fillStyle = '#000';
+                        combinedCtx.fillRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+                        if (localStream.getVideoTracks()[0].enabled) {
+                            combinedCtx.drawImage(localVideo, 0, 0, w, h);
+                        }
+                        if (remoteStream.getVideoTracks()[0].enabled) {
+                            combinedCtx.drawImage(remoteVideo, w, 0, w, h);
+                        }
+                        animationFrameId = requestAnimationFrame(drawCombinedFrame);
+                    }
+                    drawCombinedFrame();
+                    streamToRecord = combinedCanvas.captureStream(25); // 25 fps
+                    
+                    // 2. 오디오 합성 (AudioContext)
+                    audioContext = new AudioContext();
+                    audioDestination = audioContext.createMediaStreamDestination();
+                    
+                    if (localStream.getAudioTracks().length > 0) {
+                        const localAudioSource = audioContext.createMediaStreamSource(localStream);
+                        localAudioSource.connect(audioDestination);
+                    }
+                    if (remoteStream.getAudioTracks().length > 0) {
+                        const remoteAudioSource = audioContext.createMediaStreamSource(remoteStream);
+                        remoteAudioSource.connect(audioDestination);
+                    }
+                    
+                    combinedAudioTrack = audioDestination.stream.getAudioTracks()[0];
+                    streamToRecord.addTrack(combinedAudioTrack);
+                }
+
+                if (!streamToRecord) {
+                    alert("녹화할 스트림을 찾을 수 없습니다.");
+                    return;
+                }
+                
+                mediaRecorder = new MediaRecorder(streamToRecord, options);
+
+            } catch (e) {
+                alert("녹화 시작에 실패했습니다. " + e.message);
+                console.error("녹화 시작 오류:", e);
+                stopRecordingCleanup(); // 자원 해제
+                return;
+            }
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `recording_${target}_${new Date().toISOString()}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                stopRecordingCleanup(); // 자원 해제
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('record-btn').classList.add('off'); // 녹화 중 (빨간색)
+            document.getElementById('record-btn').innerHTML = '■';
+        }
+        
+        function stopRecording() {
+             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+        
+        // 녹화 중지 후 자원 정리
+        function stopRecordingCleanup() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (audioDestination) {
+                audioDestination.stream.getTracks().forEach(t => t.stop());
+                audioDestination = null;
+            }
+            if (combinedCtx) {
+                combinedCtx.clearRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+                combinedCanvas = null;
+                combinedCtx = null;
+            }
+            
+            isRecording = false;
+            const btn = document.getElementById('record-btn');
+            btn.classList.remove('off'); // 빨간색 중지
+            btn.innerHTML = '🔴';
+        }
 
         // 판서 (새 창)
         document.getElementById('whiteboard-btn').onclick = () => {
@@ -1305,10 +1641,11 @@
 
         // --- 7. 비디오 위 컨트롤 (캡처, 전체화면) ---
         
-        // 전체화면 (네이티브)
-        document.getElementById('local-fullscreen-btn').onclick = () => toggleNativeFullscreen(localVideo);
-        document.getElementById('remote-fullscreen-btn').onclick = () => toggleNativeFullscreen(remoteVideo);
+        // 전체화면 (네이티브) - 기능 제거됨
+        // document.getElementById('local-fullscreen-btn').onclick = () => toggleNativeFullscreen(localVideo);
+        // document.getElementById('remote-fullscreen-btn').onclick = () => toggleNativeFullscreen(remoteVideo);
 
+        /*
         function toggleNativeFullscreen(videoElement) {
             if (!document.fullscreenElement) {
                 videoElement.requestFullscreen().catch(err => {
@@ -1318,6 +1655,7 @@
                 document.exitFullscreen();
             }
         }
+        */
 
         // 캡처
         document.getElementById('local-capture-btn').onclick = () => captureVideo(localVideo, 'local_capture.png');
@@ -1383,339 +1721,123 @@
             // 새 창에 삽입될 HTML, CSS, JS (문자열)
             // PDF/Canvas 라이브러리 로드 필요
             
-            return `
+            return \`
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>판서 도구</title>
-    <!-- jsPDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
-    <!-- html2canvas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+    <title>채팅</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f0f0; display: flex; }
-        #toolbar { 
-            width: 200px; background: #fff; padding: 1rem; box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
-            display: flex; flex-direction: column; gap: 1rem;
-        }
-        .tool-group { border-bottom: 1px solid #eee; padding-bottom: 1rem; }
-        .tool-group label { display: block; margin-bottom: 5px; font-weight: 600; }
-        .tool-group input, .tool-group button, .tool-group select { width: 100%; box-sizing: border-box; padding: 5px; }
-        .tool-group button { background: #3498db; color: white; border: none; padding: 10px; cursor: pointer; border-radius: 5px; }
-        .tool-group button:hover { background: #2980b9; }
-        .tool-group button.warning { background: #e74c3c; }
-        .tool-group button.warning:hover { background: #c0392b; }
+        body { margin: 0; font-family: 'Inter', 'Noto Sans KR', sans-serif; display: flex; flex-direction: column; height: 100vh; background: #fff; }
+        #messages-log { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; background: #f9f9f9; }
+        #chat-input-area { display: flex; padding: 1rem; border-top: 1px solid #ecf0f1; background: #fff; }
+        #chat-input-area input[type="text"] { flex: 1; border: 1px solid #bdc3c7; border-radius: 20px; padding: 0.7rem 1rem; margin-right: 0.5rem; }
+        #chat-input-area button, label { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #7f8c8d; transition: color 0.3s; padding: 0 0.5rem; }
+        #chat-input-area button:hover, label:hover { color: #3498db; }
+        input[type="file"] { display: none; }
         
-        #canvas-container { flex: 1; padding: 1rem; position: relative; }
-        #whiteboard { 
-            background: #fff; 
-            border: 1px solid #ccc; 
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            cursor: crosshair;
-            width: 100%;
-            height: 100%;
-            box-sizing: border-box;
-        }
-        #page-nav { text-align: center; margin-top: 5px; font-size: 1.1rem; }
+        // --- 10. 채팅 팝업 HTML ---
+        
+        function getChatPopupHTML() {
+            return \`
+<!DOCTYPE html>
+<html lang="ko">
+        .message.system { background-color: #f1c40f; color: #333; align-self: center; font-size: 0.9rem; font-style: italic; }
+        .message a { color: #fff; font-weight: 600; text-decoration: underline; }
+        .message.remote a { color: #2980b9; }
+        .message img { max-width: 100%; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="toolbar">
-        <div class="tool-group">
-            <label>도구</label>
-            <button id="pen-btn" style="background: #2ecc71;">펜</button>
-            <button id="highlighter-btn">형광펜</button>
-            <button id="eraser-btn">지우개</button>
-        </div>
-        <div class="tool-group">
-            <label for="color-picker">색상</label>
-            <input type="color" id="color-picker" value="#000000">
-        </div>
-        <div class="tool-group">
-            <label for="size-slider">굵기 (<span id="size-value">5</span>px)</label>
-            <input type="range" id="size-slider" min="1" max="50" value="5">
-        </div>
-        <div class="tool-group">
-            <label>페이지</label>
-            <button id="prev-page-btn">이전</button>
-            <span id="page-display" style="display: block; text-align: center; padding: 5px;">1 / 1</span>
-            <button id="next-page-btn">다음</button>
-            <button id="add-page-btn" style="background: #9b59b6; margin-top: 5px;">페이지 추가</button>
-        </div>
-        <div class="tool-group">
-            <label>관리</label>
-            <button id="clear-all-btn" class="warning">모두 지우기</button>
-        </div>
-        <div class="tool-group">
-            <label>저장</label>
-            <button id="save-png-btn">현재 페이지 (PNG)</button>
-            <button id="save-pdf-btn">현재 페이지 (PDF)</button>
-            <button id="save-all-pdf-btn">모든 페이지 (PDF)</button>
-            <button id="send-chat-btn" style="background: #f39c12; margin-top: 5px;">채팅에 전송</button>
-        </div>
+    <div id="messages-log"></div>
+    <div id="chat-input-area">
+        <input type="file" id="popup-file-input">
+        <label for="popup-file-input" title="파일 첨부">📎</label>
+        <input type="file" id="popup-image-input" accept="image/*">
+        <label for="popup-image-input" title="이미지 첨부">🖼️</label>
+        <input type="text" id="popup-chat-input" placeholder="메시지 입력...">
+        <button id="popup-send-btn" title="전송">➤</button>
     </div>
-    <div id="canvas-container">
-        <canvas id="whiteboard"></canvas>
-    </div>
-
+    
     <script>
-        // PDF 라이브러리 로드 확인
-        const { jsPDF } = window.jspdf;
-
-        const canvas = document.getElementById('whiteboard');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('canvas-container');
+        const log = document.getElementById('messages-log');
+        const input = document.getElementById('popup-chat-input');
+        const sendBtn = document.getElementById('popup-send-btn');
+        const fileInput = document.getElementById('popup-file-input');
+        const imageInput = document.getElementById('popup-image-input');
         
-        let isDrawing = false;
-        let isEraser = false;
-        let isHighlighter = false;
-        let currentColor = '#000000';
-        let currentSize = 5;
-        
-        let pages = []; // 각 페이지의 canvas 데이터를 저장
-        let currentPageIndex = 0;
-
-        function resizeCanvas() {
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-            // 리사이즈 후 현재 페이지 다시 그리기
-            loadPage(currentPageIndex);
-        }
-        
-        window.onresize = resizeCanvas;
-
-        // 그리기
-        function startDrawing(e) {
-            isDrawing = true;
-            ctx.beginPath();
-            ctx.moveTo(e.offsetX, e.offsetY);
+        // 1. 메인 창에서 호출할 함수 (메시지 추가)
+        function addMessageToPopup(html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html.trim();
+            const msgElement = tempDiv.firstChild;
             
-            if (isEraser) {
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.globalAlpha = 1.0;
-            } else if (isHighlighter) {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.globalAlpha = 0.3; // 형광펜 투명도
-            } else { // 펜
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.globalAlpha = 1.0;
+            // 이미지/링크 클릭 이벤트 재연결
+            if (msgElement.querySelector('img')) {
+                msgElement.querySelector('img').onclick = () => window.open(msgElement.querySelector('img').src);
+            }
+            if (msgElement.querySelector('a')) {
+                 msgElement.querySelector('a').onclick = (e) => { e.preventDefault(); window.open(msgElement.querySelector('a').href); };
             }
             
-            ctx.strokeStyle = currentColor;
-            ctx.lineWidth = currentSize;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.stroke();
-        }
-
-        function stopDrawing() {
-            if (!isDrawing) return;
-            ctx.closePath();
-            isDrawing = false;
-            // 현재 캔버스 상태 저장
-            savePage(currentPageIndex);
+            log.appendChild(msgElement);
+            log.scrollTop = log.scrollHeight;
         }
         
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-        canvas.addEventListener('mouseout', stopDrawing);
-        
-        // --- 모바일 터치 이벤트 추가 ---
-        function getTouchPos(e) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: e.touches[0].clientX - rect.left,
-                y: e.touches[0].clientY - rect.top
-            };
+        // 2. 메인 창으로 메시지 전송
+        function sendMessage() {
+            const msg = input.value;
+            if (!msg.trim()) return;
+            try {
+                window.opener.sendChatMessageFromPopup(msg);
+                input.value = '';
+            } catch(e) { console.error('메인 창 통신 실패:', e); }
         }
         
-        canvas.addEventListener('touchstart', (e) => {
-            if (e.target == canvas) {
-                e.preventDefault();
-                const pos = getTouchPos(e);
-                startDrawing({ offsetX: pos.x, offsetY: pos.y });
-            }
-        }, { passive: false });
-        
-        canvas.addEventListener('touchmove', (e) => {
-            if (e.target == canvas) {
-                e.preventDefault();
-                const pos = getTouchPos(e);
-                draw({ offsetX: pos.x, offsetY: pos.y });
-            }
-        }, { passive: false });
-        
-        canvas.addEventListener('touchend', (e) => {
-            if (e.target == canvas) {
-                e.preventDefault();
-                stopDrawing();
-            }
-        }, { passive: false });
-        
-        // --- 툴바 로직 ---
-        document.getElementById('pen-btn').onclick = () => { 
-            isEraser = false; 
-            isHighlighter = false; 
-        };
-        document.getElementById('highlighter-btn').onclick = () => { 
-            isEraser = false; 
-            isHighlighter = true; 
-        };
-        document.getElementById('eraser-btn').onclick = () => { 
-            isEraser = true; 
-            isHighlighter = false; 
+        sendBtn.onclick = sendMessage;
+        input.onkeyup = (e) => {
+            if (e.key === 'Enter') sendMessage();
         };
         
-        const colorPicker = document.getElementById('color-picker');
-        colorPicker.oninput = (e) => { currentColor = e.target.value; }; // onchange -> oninput
-        
-        const sizeSlider = document.getElementById('size-slider');
-        const sizeValue = document.getElementById('size-value');
-        sizeSlider.oninput = (e) => { 
-            currentSize = e.target.value;
-            sizeValue.textContent = currentSize;
-        };
-        
-        document.getElementById('clear-all-btn').onclick = () => {
-            if (confirm('현재 페이지를 모두 지우시겠습니까?')) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                savePage(currentPageIndex); // 빈 페이지 저장
-            }
-        };
-
-        // --- 페이지 로직 ---
-        const pageDisplay = document.getElementById('page-display');
-
-        function updatePageDisplay() {
-            pageDisplay.textContent = \`\${currentPageIndex + 1} / \${pages.length}\`;
-        }
-        
-        function savePage(index) {
-            pages[index] = canvas.toDataURL('image/png');
-        }
-        
-        function loadPage(index) {
-            const dataUrl = pages[index];
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // 먼저 지우고
-            
-            if (dataUrl) {
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0);
-                };
-                img.src = dataUrl;
-            }
-        }
-        
-        // 초기 1페이지 생성
-        function initializePages() {
-            pages.push(null); // 빈 1페이지
-            resizeCanvas(); // 캔버스 크기 설정 및 loadPage(0) 호출
-            updatePageDisplay();
-        }
-        
-        document.getElementById('add-page-btn').onclick = () => {
-            savePage(currentPageIndex); // 현재 페이지 저장
-            pages.push(null); // 새 빈 페이지 추가
-            currentPageIndex = pages.length - 1; // 새 페이지로 이동
-            loadPage(currentPageIndex);
-            updatePageDisplay();
-        };
-
-        document.getElementById('prev-page-btn').onclick = () => {
-            if (currentPageIndex > 0) {
-                savePage(currentPageIndex);
-                currentPageIndex--;
-                loadPage(currentPageIndex);
-                updatePageDisplay();
+        // 3. 메인 창으로 파일 전송
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    window.opener.sendFileFromPopup(file);
+                } catch(e) { console.error('메인 창 통신 실패:', e); }
+                e.target.value = null;
             }
         };
         
-        document.getElementById('next-page-btn').onclick = () => {
-            if (currentPageIndex < pages.length - 1) {
-                savePage(currentPageIndex);
-                currentPageIndex++;
-                loadPage(currentPageIndex);
-                updatePageDisplay();
+        // 4. 메인 창으로 이미지 전송
+        imageInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                try {
+                    window.opener.sendFileFromPopup(file);
+                } catch(e) { console.error('메인 창 통신 실패:', e); }
+                e.target.value = null;
             }
         };
-        
-        initializePages();
 
-        // --- 저장 로직 ---
-        function download(href, filename) {
-             const a = document.createElement('a');
-             a.href = href;
-             a.download = filename;
-             document.body.appendChild(a);
-             a.click();
-             document.body.removeChild(a);
-        }
-
-        // PNG 저장
-        document.getElementById('save-png-btn').onclick = () => {
-            savePage(currentPageIndex); // 최신 상태 저장
-            download(pages[currentPageIndex], \`whiteboard_page_\${currentPageIndex + 1}.png\`);
-        };
-
-        // 현재 페이지 PDF 저장
-        document.getElementById('save-pdf-btn').onclick = () => {
-            savePage(currentPageIndex);
-            const doc = new jsPDF({
-                orientation: canvas.width > canvas.height ? 'l' : 'p',
-                unit: 'px',
-                format: [canvas.width, canvas.height]
-            });
-            doc.addImage(pages[currentPageIndex], 'PNG', 0, 0, canvas.width, canvas.height);
-            doc.save(\`whiteboard_page_\${currentPageIndex + 1}.pdf\`);
-        };
-        
-        // 모든 페이지 PDF 저장
-        document.getElementById('save-all-pdf-btn').onclick = () => {
-            savePage(currentPageIndex); // 마지막 페이지 저장
-            
-            const doc = new jsPDF({
-                orientation: canvas.width > canvas.height ? 'l' : 'p',
-                unit: 'px',
-                format: [canvas.width, canvas.height]
-            });
-            
-            pages.forEach((pageData, index) => {
-                if (index > 0) {
-                    doc.addPage([canvas.width, canvas.height], canvas.width > canvas.height ? 'l' : 'p');
+        // 5. 창 로드 시 메인 창의 기록 복사
+        window.onload = () => {
+            try {
+                const mainLog = window.opener.document.getElementById('messages-log');
+                if (mainLog) {
+                    log.innerHTML = mainLog.innerHTML;
+                    // 이미지/링크 클릭 이벤트 재연결
+                    log.querySelectorAll('img').forEach(img => img.onclick = () => window.open(img.src));
+                    log.querySelectorAll('a').forEach(a => a.onclick = (e) => { e.preventDefault(); window.open(a.href); });
+                    log.scrollTop = log.scrollHeight;
                 }
-                if (pageData) { // 빈 페이지가 아닐 경우
-                    doc.addImage(pageData, 'PNG', 0, 0, canvas.width, canvas.height);
-                }
-            });
-            
-            doc.save('whiteboard_all_pages.pdf');
+            } catch(e) { console.error('메인 창 기록 로드 실패:', e); }
         };
-        
-        // 채팅 전송
-        document.getElementById('send-chat-btn').onclick = () => {
-            savePage(currentPageIndex); // 현재 페이지 저장
-            const dataUrl = pages[currentPageIndex];
-            
-            if (window.opener && !window.opener.closed) {
-                // 메인 창의 sendWhiteboardCapture 함수 호출
-                window.opener.sendWhiteMboardCapture(dataUrl);
-            } else {
-                alert("메인 창을 찾을 수 없습니다. (팝업이 차단되었거나 창이 닫혔습니다.)");
-            }
-        };
-
     <\/script>
 </body>
 </html>
-            `;
+            \`;
         }
 
     </script>
