@@ -1,92 +1,1475 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>올인원 1:1 화상채팅</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1:1 화상 채팅</title>
+    <!-- PeerJS 라이브러리 -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    
+    <!-- 판서 도구용 라이브러리 (새 창에서 로드됨) -->
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+    
+    <style>
+        /* 기본 스타일 */
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #333;
+        }
+
+        /* 로그인 화면 */
+        #login-screen {
+            background-color: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 450px;
+            box-sizing: border-box;
+        }
+
+        #login-screen h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 2rem;
+        }
+
+        .login-tabs {
+            display: flex;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 0.8rem;
+            border: none;
+            background-color: #ecf0f1;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .tab-btn:first-child {
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+        
+        .tab-btn:last-child {
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        .tab-btn.active {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .login-form {
+            display: none;
+        }
+
+        .login-form.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 0.8rem;
+            border: 1px solid #bdc3c7;
+            border-radius: 8px;
+            box-sizing: border-box; /* 패딩 포함 */
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.9rem;
+            border: none;
+            border-radius: 8px;
+            background-color: #3498db;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .btn-secondary {
+            background-color: #2ecc71;
+        }
+        .btn-secondary:hover {
+            background-color: #27ae60;
+        }
+
+        #teacher-panel {
+            display: none; /* 교사 비번 인증 후 표시 */
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #ecf0f1;
+        }
+
+        #shareable-url {
+            background-color: #ecf0f1;
+            padding: 0.8rem;
+            border-radius: 8px;
+            word-break: break-all;
+            margin-top: 1rem;
+        }
+
+        /* 회의실 화면 */
+        #meeting-room {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background-color: #2c3e50;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        #main-content {
+            display: flex;
+            flex: 1;
+            height: calc(100% - 80px); /* 컨트롤 바 높이 제외 */
+        }
+
+        #video-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #34495e;
+            padding: 1rem;
+            gap: 1rem;
+            box-sizing: border-box;
+            overflow: hidden; /* 스크롤 방지 */
+        }
+        
+        /* 확대 모드 (Enlarge) */
+        #video-container.theater-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: calc(100% - 350px); /* 채팅창 너비 제외 */
+            height: 100vh;
+            z-index: 1000;
+            padding: 1rem;
+            background: #2c3e50;
+        }
+        
+        #video-container.theater-mode #local-video-wrapper {
+             flex: 1; /* 로컬 비디오가 꽉 차도록 */
+        }
+        
+        /* #video-container.theater-mode #remote-video-wrapper {
+            /* PIP로 전환되므로 숨김 (PIP API가 처리) */
+            /* display: none; */ 
+        /* } */
+
+
+        .video-wrapper {
+            position: relative;
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            flex: 1; /* 기본적으로 1:1 비율 */
+            min-height: 0; /* flexbox 높이 문제 해결 */
+        }
+
+        .video-wrapper video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-controls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            display: flex;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .video-wrapper:hover .video-controls {
+            opacity: 1;
+        }
+
+        .video-controls button {
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .video-controls button:hover {
+            background: rgba(0,0,0,0.8);
+        }
+
+        /* 채팅창 (우측) */
+        #chat-container {
+            width: 350px;
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            height: 100%; /* main-content 높이에 맞춤 */
+            border-left: 1px solid #bdc3c7;
+            box-sizing: border-box;
+            z-index: 1001; /* 확대 모드보다 위에 */
+        }
+
+        #chat-header {
+            padding: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-bottom: 1px solid #ecf0f1;
+            color: #2c3e50;
+        }
+
+        #messages-log {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .message {
+            padding: 0.6rem 0.9rem;
+            border-radius: 12px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .message.local {
+            background-color: #3498db;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.remote {
+            background-color: #ecf0f1;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message.system {
+            background-color: #f1c40f;
+            color: #333;
+            align-self: center;
+            font-size: 0.9rem;
+            font-style: italic;
+        }
+        
+        .message a {
+            color: #fff;
+            font-weight: 600;
+            text-decoration: underline;
+        }
+        
+        .message.remote a {
+            color: #2980b9;
+        }
+
+        #chat-input-area {
+            display: flex;
+            padding: 1rem;
+            border-top: 1px solid #ecf0f1;
+        }
+
+        #chat-input-area input[type="text"] {
+            flex: 1;
+            border: 1px solid #bdc3c7;
+            border-radius: 20px;
+            padding: 0.7rem 1rem;
+            margin-right: 0.5rem;
+        }
+
+        #chat-input-area button, #file-input-label {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #7f8c8d;
+            transition: color 0.3s;
+            padding: 0 0.5rem;
+        }
+        
+        #chat-input-area button:hover, #file-input-label:hover {
+            color: #3498db;
+        }
+        
+        #file-input {
+            display: none;
+        }
+
+        /* 하단 컨트롤 바 */
+        #controls-bar {
+            height: 80px;
+            background-color: #34495e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            padding: 0 1rem;
+            box-sizing: border-box;
+            border-top: 1px solid #4a6580;
+        }
+
+        .control-btn {
+            background-color: #5d7ca0;
+            color: white;
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s;
+        }
+
+        .control-btn:hover {
+            background-color: #7a9ac4;
+        }
+
+        /* 켜진 상태 (파란색) */
+        .control-btn.on {
+            background-color: #3498db;
+        }
+        .control-btn.on:hover {
+            background-color: #5dade2;
+        }
+
+        /* 꺼진 상태 (빨간색) */
+        .control-btn.off {
+            background-color: #e74c3c;
+        }
+        .control-btn.off:hover {
+            background-color: #ec7063;
+        }
+        
+        #end-call-btn {
+            background-color: #e74c3c;
+        }
+        #end-call-btn:hover {
+            background-color: #c0392b;
+        }
+        
+        /* 유틸리티 */
+        .hidden {
+            display: none !important;
+        }
+
+    </style>
 </head>
 <body>
-<div class="container" id="main-section">
-    <h2>1:1 실시간 화상채팅</h2>
-    <button onclick="showTeacher()">교사로 시작</button>
-    <button onclick="showStudent()">학생으로 입장</button>
-</div>
-<div class="container hidden" id="teacher-auth">
-  <h3>교사 인증</h3>
-  <label>비밀번호 입력: <input type="password" id="teacher-pw"></label>
-  <button onclick="teacherLogin()">확인</button>
-  <p id="teacher-auth-msg" style="color:red;"></p>
-</div>
-<div class="container hidden" id="teacher-create">
-  <h3>강의방 생성</h3>
-  <label>강의방 ID: <input type="text" id="room-id"></label>
-  <label>접속 비밀번호:<input type="text" id="room-pw"></label>
-  <button onclick="createRoom()">강의방 생성</button>
-  <div id="url-share"></div>
-</div>
-<div class="container hidden" id="student-join">
-  <h3>강의방 입장</h3>
-  <label>강의방 ID: <input type="text" id="join-room-id"></label>
-  <label>접속 비밀번호: <input type="text" id="join-room-pw"></label>
-  <label>이름: <input type="text" id="join-name"></label>
-  <button onclick="joinRoomByInfo()">입장</button>
-</div>
-<div class="container hidden" id="student-url-join">
-  <h3>이름 입력</h3>
-  <label>이름: <input type="text" id="url-join-name"></label>
-  <button onclick="joinRoomByUrl()">입장</button>
-</div>
-<div class="container hidden" id="video-section">
-  <div id="connection-msg">서로 연결되었습니다!</div>
-  <h3 id="role-title"></h3>
-  <div id="video-chat-wrap">
-    <div id="video-box">
-      <div class="video-wrap">
-        <div class="controls">
-          <button id="fullscreen-my" class="sm" title="전체화면" onclick="fullscreenVideo('my-video')">⛶</button>
-          <button id="expand-my" class="sm" title="화면키우기" onclick="maximizeVideo('my-video','peer-video')">📺</button>
-          <button id="capture-my" class="sm" title="캡쳐" onclick="captureVideo('my-video')">📸</button>
-          <button id="rec-btn" class="sm" onclick="toggleRecord()">● 녹화</button>
+
+    <!-- 1. 로그인 화면 -->
+    <div id="login-screen">
+        <h1>화상 채팅 시작하기</h1>
+
+        <div class="login-tabs">
+            <button class="tab-btn active" onclick="showLoginTab('student')">학생</button>
+            <button class="tab-btn" onclick="showLoginTab('teacher')">교사</button>
         </div>
-        <video id="my-video" autoplay playsinline muted></video>
-        <div style="margin:5px 0;">
-          <button class="sm on" id="switch-cam-btn" onclick="switchCamera()">카메라 전환</button>
-          <button class="sm on" id="mic-toggle-btn" onclick="toggleMic()">마이크 끄기</button>
-          <button class="sm on" id="cam-toggle-btn" onclick="toggleCam()">카메라 끄기</button>
-          <button class="sm on" id="screen-share-btn" onclick="shareScreen()">화면공유</button>
+
+        <!-- 학생 로그인 폼 -->
+        <div id="student-form" class="login-form active">
+            <div class="form-group">
+                <label for="student-name">이름</label>
+                <input type="text" id="student-name" placeholder="이름을 입력하세요">
+            </div>
+            <div class="form-group">
+                <label for="student-meeting-id">화상 ID</label>
+                <input type="text" id="student-meeting-id" placeholder="교사에게 받은 ID 입력">
+            </div>
+            <div class="form-group">
+                <label for="student-meeting-pass">비밀번호</label>
+                <input type="password" id="student-meeting-pass" placeholder="회의 비밀번호 입력">
+            </div>
+            <button id="join-btn" class="btn">참여하기</button>
         </div>
-      </div>
-      <div class="video-other">
-        <div class="controls">
-          <button id="fullscreen-peer" class="sm" title="전체화면" onclick="fullscreenVideo('peer-video')">⛶</button>
-          <button id="expand-peer" class="sm" title="화면키우기" onclick="maximizeVideo('peer-video','my-video')">📺</button>
-          <button id="capture-peer" class="sm" title="캡쳐" onclick="captureVideo('peer-video')">📸</button>
+
+        <!-- 교사 로그인 폼 -->
+        <div id="teacher-form" class="login-form">
+            <div class="form-group">
+                <label for="teacher-pass">교사 인증 (a123456!)</label>
+                <input type="password" id="teacher-pass">
+            </div>
+            <button id="teacher-auth-btn" class="btn">인증하기</button>
+
+            <!-- 교사 인증 후 표시되는 패널 -->
+            <div id="teacher-panel">
+                <div class="form-group">
+                    <label for="teacher-meeting-id">화상 ID (자동 생성됨)</label>
+                    <input type="text" id="teacher-meeting-id" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="teacher-meeting-pass">비밀번호 설정</label>
+                    <input type="password" id="teacher-meeting-pass" placeholder="학생이 사용할 비밀번호">
+                </div>
+                <button id="create-btn" class="btn btn-secondary">회의 생성하기</button>
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label>공유용 주소:</label>
+                    <div id="shareable-url">(회의 생성 후 표시됩니다)</div>
+                </div>
+            </div>
         </div>
-        <video id="peer-video" autoplay playsinline></video>
-      </div>
-      <button id="whiteboard-btn" onclick="openWhiteboard()">✏️ 판서도구 오픈</button>
     </div>
-    <div id="chat-panel">
-      <div id="chat-box"></div>
-      <div>
-        <input type="text" id="chat-input" placeholder="채팅 입력" autocomplete="off">
-        <button class="chat-send" onclick="sendMsg()">전송</button>
-        <input type="file" id="file-input" title="파일첨부" />
-      </div>
+
+    <!-- 2. 회의실 화면 -->
+    <div id="meeting-room">
+        <!-- 메인 컨텐츠 (비디오) -->
+        <div id="main-content">
+            <div id="video-container">
+                <!-- 원격 비디오 -->
+                <div id="remote-video-wrapper" class="video-wrapper">
+                    <video id="remote-video" playsinline autoplay></video>
+                    <div class="video-controls">
+                        <button id="remote-fullscreen-btn" title="전체화면">FS</button>
+                        <button id="remote-capture-btn" title="캡처">📸</button>
+                    </div>
+                </div>
+                <!-- 로컬 비디오 -->
+                <div id="local-video-wrapper" class="video-wrapper">
+                    <video id="local-video" playsinline autoplay muted></video>
+                    <div class="video-controls">
+                        <button id="local-fullscreen-btn" title="전체화면">FS</button>
+                        <button id="local-capture-btn" title="캡처">📸</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 채팅창 (우측) -->
+            <div id="chat-container">
+                <div id="chat-header">채팅</div>
+                <div id="messages-log">
+                    <!-- 메시지 동적 추가 -->
+                </div>
+                <div id="chat-input-area">
+                    <input type="file" id="file-input">
+                    <label for="file-input" id="file-input-label" title="파일 첨부">📎</label>
+                    <input type="text" id="chat-input" placeholder="메시지 입력...">
+                    <button id="send-chat-btn" title="전송">➤</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 컨트롤 바 -->
+        <div id="controls-bar">
+            <button id="mic-btn" class="control-btn on" title="마이크 켜기/끄기">🎤</button>
+            <button id="video-btn" class="control-btn on" title="카메라 켜기/끄기">📷</button>
+            <button id="switch-cam-btn" class="control-btn" title="카메라 전환">🔄</button>
+            <button id="share-screen-btn" class="control-btn" title="화면 공유">🖥️</button>
+            <button id="enlarge-btn" class="control-btn" title="화면 확대/PIP">🔳</button>
+            <button id="record-btn" class="control-btn" title="녹화">🔴</button>
+            <button id="whiteboard-btn" class="control-btn" title="판서">✏️</button>
+            <button id="end-call-btn" class="control-btn" title="통화 종료">📞</button>
+        </div>
     </div>
-  </div>
-</div>
-<!-- PIP/Big view UI -->
-<div id="big-view" onclick="closeBigView(event)">
-  <div id="big-main">
-    <button onclick="closeBigView(event)">닫기</button>
-    <!-- 동적으로 비디오 넣음 -->
-  </div>
-</div>
-<!-- PeerJS CDN -->
-<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
-<!-- jsPDF for 판서 PDF -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="app.js"></script>
+
+    <script>
+        // 전역 변수
+        let peer;
+        let localStream;
+        let remoteStream;
+        let currentCall;
+        let dataConnection;
+        let isTeacher = false;
+        let currentMeetingId = '';
+        let currentMeetingPass = '';
+        let myName = '';
+        let isMicOn = true;
+        let isVideoOn = true;
+        let isScreenSharing = false;
+        let isRecording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let videoDevices = [];
+        let currentVideoDeviceIndex = 0;
+        let whiteboardWindow = null;
+        
+        // 파일 청크 관련
+        const CHUNK_SIZE = 64 * 1024; // 64KB
+        let incomingFileData = {};
+        let incomingFileChunks = [];
+        let receivedBytes = 0;
+
+        // UI 요소
+        const loginScreen = document.getElementById('login-screen');
+        const meetingRoom = document.getElementById('meeting-room');
+        const studentForm = document.getElementById('student-form');
+        const teacherForm = document.getElementById('teacher-form');
+        const teacherPanel = document.getElementById('teacher-panel');
+
+        const localVideo = document.getElementById('local-video');
+        const remoteVideo = document.getElementById('remote-video');
+        const messagesLog = document.getElementById('messages-log');
+        const chatInput = document.getElementById('chat-input');
+
+        // --- 1. 로그인 및 초기화 로직 ---
+
+        // 페이지 로드 시 URL 파라미터 확인
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const id = urlParams.get('id');
+            const pass = urlParams.get('pass');
+
+            if (id && pass) {
+                // 학생 URL 접속
+                document.getElementById('student-meeting-id').value = id;
+                document.getElementById('student-meeting-pass').value = pass;
+                document.getElementById('student-meeting-pass').disabled = true; // 비번 입력 방지
+                showLoginTab('student');
+            }
+        };
+
+        // 탭 전환
+        function showLoginTab(role) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.login-form').forEach(form => form.classList.remove('active'));
+            
+            document.querySelector(`.tab-btn[onclick="showLoginTab('${role}')"]`).classList.add('active');
+            document.getElementById(`${role}-form`).classList.add('active');
+        }
+
+        // 교사 인증
+        document.getElementById('teacher-auth-btn').onclick = () => {
+            const pass = document.getElementById('teacher-pass').value;
+            if (pass === 'a123456!') {
+                teacherPanel.style.display = 'block';
+                // 교유 ID 생성 (간단하게)
+                currentMeetingId = 'teacher-' + Math.random().toString(36).substr(2, 9);
+                document.getElementById('teacher-meeting-id').value = currentMeetingId;
+                isTeacher = true;
+                myName = '교사';
+            } else {
+                alert('교사 인증 실패!');
+            }
+        };
+
+        // 교사: 회의 생성
+        document.getElementById('create-btn').onclick = () => {
+            currentMeetingPass = document.getElementById('teacher-meeting-pass').value;
+            if (!currentMeetingPass) {
+                alert('비밀번호를 설정하세요.');
+                return;
+            }
+            
+            // 공유 URL 생성
+            const url = `${window.location.origin}${window.location.pathname}?id=${currentMeetingId}&pass=${currentMeetingPass}`;
+            document.getElementById('shareable-url').textContent = url;
+            
+            startMeeting();
+        };
+
+        // 학생: 회의 참여
+        document.getElementById('join-btn').onclick = () => {
+            myName = document.getElementById('student-name').value;
+            currentMeetingId = document.getElementById('student-meeting-id').value;
+            currentMeetingPass = document.getElementById('student-meeting-pass').value;
+            
+            if (!myName || !currentMeetingId || !currentMeetingPass) {
+                alert('이름, ID, 비밀번호를 모두 입력하세요.');
+                return;
+            }
+            
+            isTeacher = false;
+            startMeeting();
+        };
+
+        // --- 2. 미디어 및 PeerJS 시작 ---
+
+        async function startMeeting() {
+            try {
+                // 1. 로컬 미디어 시작
+                await startLocalMedia();
+                
+                // 2. PeerJS 초기화
+                initializePeer();
+                
+                // 3. UI 전환
+                loginScreen.style.display = 'none';
+                meetingRoom.style.display = 'flex';
+
+            } catch (err) {
+                console.error("미디어 시작 실패:", err);
+                alert("카메라 또는 마이크에 접근할 수 없습니다. 권한을 확인해주세요.");
+            }
+        }
+
+        async function startLocalMedia(videoDeviceId = undefined) {
+            // 기존 스트림 중지
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                audio: true,
+                video: {
+                    facingMode: 'user', // 기본 전면 카메라
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+            
+            // 특정 카메라 장치 ID가 있으면 사용 (카메라 전환 시)
+            if (videoDeviceId) {
+                constraints.video.deviceId = { exact: videoDeviceId };
+            }
+
+            localStream = await navigator.mediaDevices.getUserMedia(constraints);
+            localVideo.srcObject = localStream;
+            
+            // 비디오 장치 목록 가져오기 (태블릿 등 지원)
+            getVideoDevices();
+            
+            // PeerJS 연결이 이미 있으면 트랙 교체
+            if (currentCall) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                const audioTrack = localStream.getAudioTracks()[0];
+                
+                currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video').replaceTrack(videoTrack);
+                currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio').replaceTrack(audioTrack);
+            }
+        }
+        
+        // 비디오 장치 목록 가져오기
+        async function getVideoDevices() {
+             try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                videoDevices = devices.filter(device => device.kind === 'videoinput');
+                // console.log("비디오 장치:", videoDevices);
+                document.getElementById('switch-cam-btn').classList.toggle('hidden', videoDevices.length <= 1);
+            } catch (e) {
+                console.error("장치 목록 가져오기 실패:", e);
+            }
+        }
+
+        function initializePeer() {
+            if (isTeacher) {
+                peer = new Peer(currentMeetingId); // 교사는 지정된 ID 사용
+            } else {
+                peer = new Peer(); // 학생은 랜덤 ID 사용
+            }
+
+            peer.on('open', id => {
+                console.log('PeerJS ID:', id);
+                if (!isTeacher) {
+                    // 학생은 교사에게 데이터 연결 및 통화 요청
+                    connectToTeacher();
+                }
+            });
+
+            // 교사: 학생의 데이터 연결 수신
+            peer.on('connection', conn => {
+                console.log('데이터 연결 수신:', conn.peer);
+                setupDataConnection(conn);
+            });
+
+            // 교사: 학생의 영상 통화 수신
+            peer.on('call', call => {
+                console.log('영상 통화 수신:', call.peer);
+                
+                // 교사 측에서만 answer (학생은 call만 함)
+                // -> 수정: 교사가 학생의 pw를 확인한 후에만 answer
+                // -> 수정2: 학생이 데이터 연결로 pw 전송 -> 교사가 확인 -> 교사가 call
+                
+                // 학생이 보낸 통화 요청 응답
+                call.answer(localStream);
+                setupCall(call);
+            });
+            
+            peer.on('error', err => {
+                console.error("PeerJS 오류:", err);
+                // alert("연결 오류가 발생했습니다: " + err.message);
+            });
+        }
+        
+        // 학생: 교사에게 연결
+        function connectToTeacher() {
+            // 1. 데이터 연결 (인증용)
+            console.log(`교사(${currentMeetingId})에게 데이터 연결 시도...`);
+            dataConnection = peer.connect(currentMeetingId, {
+                metadata: { 
+                    name: myName, 
+                    pass: currentMeetingPass 
+                }
+            });
+            setupDataConnection(dataConnection);
+
+            // 2. 영상 통화 (데이터 연결 성공 후 교사가 걸도록 수정)
+            // console.log(`교사(${currentMeetingId})에게 영상 통화 시도...`);
+            // currentCall = peer.call(currentMeetingId, localStream);
+            // setupCall(currentCall);
+        }
+        
+        // --- 3. 데이터 채널 (채팅, 파일, 인증) ---
+
+        function setupDataConnection(conn) {
+            dataConnection = conn;
+            
+            dataConnection.on('open', () => {
+                console.log('데이터 채널 열림:', dataConnection.peer);
+                if (isTeacher) {
+                    // 교사: 학생 인증 확인
+                    const metadata = dataConnection.metadata;
+                    if (metadata.pass === currentMeetingPass) {
+                        console.log(`학생(${metadata.name}) 인증 성공`);
+                        // 인증 성공 메시지 전송
+                        dataConnection.send({ type: 'auth_success' });
+                        addChatMessage(`'${metadata.name}'님이 접속했습니다.`, 'system');
+                        
+                        // 인증 성공 후 교사가 학생에게 영상 통화 시작
+                        console.log(`학생(${dataConnection.peer})에게 영상 통화 시도...`);
+                        currentCall = peer.call(dataConnection.peer, localStream);
+                        setupCall(currentCall);
+
+                    } else {
+                        console.log(`학생(${metadata.name}) 인증 실패`);
+                        dataConnection.send({ type: 'auth_fail' });
+                        dataConnection.close();
+                    }
+                } else {
+                     // 학생: 연결 성공 (인증 대기)
+                     console.log('교사에게 데이터 연결 성공. 인증 대기 중...');
+                }
+            });
+
+            dataConnection.on('data', data => {
+                // console.log("데이터 수신:", data.type);
+                switch(data.type) {
+                    case 'auth_success': // 학생이 받음
+                        console.log("교사 인증 성공!");
+                        addChatMessage("연결되었습니다.", 'system');
+                        break;
+                    case 'auth_fail': // 학생이 받음
+                        alert("비밀번호가 틀렸습니다. 연결이 거부되었습니다.");
+                        peer.destroy();
+                        location.reload();
+                        break;
+                    case 'chat':
+                        addChatMessage(data.message, 'remote');
+                        break;
+                    case 'file_meta': // 파일 전송 시작 (메타데이터)
+                        incomingFileData = {
+                            name: data.name,
+                            size: data.size,
+                            type: data.type
+                        };
+                        incomingFileChunks = [];
+                        receivedBytes = 0;
+                        addChatMessage(`파일 수신 중: ${data.name} (${(data.size / 1024 / 1024).toFixed(2)} MB)`, 'system');
+                        break;
+                    case 'file_chunk': // 파일 조각 (청크)
+                        incomingFileChunks.push(data.chunk);
+                        receivedBytes += data.chunk.byteLength;
+                        
+                        // 진행률 표시 (옵션)
+                        // console.log(`수신 진행: ${(receivedBytes / incomingFileData.size * 100).toFixed(1)}%`);
+                        
+                        // 모든 청크를 받으면 파일 재조립
+                        if (receivedBytes === incomingFileData.size) {
+                            reassembleFile();
+                        }
+                        break;
+                    // case 'file_end': // 파일 전송 완료 (청크 크기로 대체)
+                    //     reassembleFile();
+                    //     break;
+                }
+            });
+            
+            dataConnection.on('close', () => {
+                addChatMessage('상대방이 연결을 종료했습니다.', 'system');
+                remoteVideo.srcObject = null;
+                if(currentCall) currentCall.close();
+            });
+        }
+        
+        // 파일 재조립 및 다운로드 링크 생성
+        function reassembleFile() {
+            try {
+                const fileBlob = new Blob(incomingFileChunks, { type: incomingFileData.type });
+                const url = URL.createObjectURL(fileBlob);
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message', 'remote');
+                
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = incomingFileData.name;
+                downloadLink.textContent = `[파일 다운로드] ${incomingFileData.name}`;
+                
+                messageDiv.appendChild(downloadLink);
+                messagesLog.appendChild(messageDiv);
+                messagesLog.scrollTop = messagesLog.scrollHeight;
+                
+                // 초기화
+                incomingFileData = {};
+                incomingFileChunks = [];
+                receivedBytes = 0;
+
+            } catch (e) {
+                console.error("파일 재조립 실패:", e);
+                addChatMessage(`파일 수신 실패: ${incomingFileData.name}`, 'system');
+            }
+        }
+
+        // --- 4. 영상/음성 통화 설정 ---
+
+        function setupCall(call) {
+            currentCall = call;
+            
+            // 상대방 스트림 수신
+            call.on('stream', stream => {
+                console.log('원격 스트림 수신');
+                remoteStream = stream;
+                remoteVideo.srcObject = stream;
+                addChatMessage("화상 연결이 완료되었습니다.", 'system');
+            });
+
+            call.on('close', () => {
+                console.log('통화 종료');
+                remoteVideo.srcObject = null;
+                addChatMessage('상대방이 통화를 종료했습니다.', 'system');
+            });
+            
+            call.on('error', err => {
+                console.error("통화 오류:", err);
+            });
+        }
+        
+        // --- 5. 채팅 및 파일 전송 UI ---
+        
+        // 채팅 메시지 전송
+        document.getElementById('send-chat-btn').onclick = sendChatMessage;
+        chatInput.onkeyup = (e) => {
+            if (e.key === 'Enter') sendChatMessage();
+        };
+
+        function sendChatMessage() {
+            const message = chatInput.value;
+            if (!message.trim() || !dataConnection) return;
+            
+            dataConnection.send({ type: 'chat', message: message });
+            addChatMessage(message, 'local');
+            chatInput.value = '';
+        }
+
+        // 채팅 메시지 UI에 추가
+        function addChatMessage(message, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', type);
+            msgDiv.textContent = message; // textContent로 XSS 방지
+            messagesLog.appendChild(msgDiv);
+            messagesLog.scrollTop = messagesLog.scrollHeight;
+        }
+
+        // 파일 전송
+        document.getElementById('file-input').onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file || !dataConnection) return;
+
+            // 100MB 제한 (약 100 * 1024 * 1024)
+            if (file.size > 104857600) {
+                 addChatMessage(`파일 크기가 100MB를 초과합니다. (크기: ${(file.size / 1024 / 1024).toFixed(1)}MB)`, 'system');
+                 return;
+            }
+            
+            addChatMessage(`파일 전송 중: ${file.name}`, 'local');
+            
+            // 1. 메타데이터 전송
+            dataConnection.send({
+                type: 'file_meta',
+                name: file.name,
+                size: file.size,
+                type: file.type
+            });
+
+            // 2. 파일 청크 전송
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const buffer = event.target.result;
+                let offset = 0;
+
+                const sendNextChunk = () => {
+                    if (offset >= buffer.byteLength) {
+                        // console.log("파일 전송 완료:", file.name);
+                        // dataConnection.send({ type: 'file_end' }); // 청크 크기로 대체
+                        return;
+                    }
+                    
+                    // 데이터 채널 버퍼 상태 확인 (Simple)
+                    // (고급: 버퍼가 꽉 찼으면 잠시 대기)
+                    if (dataConnection.dataChannel.bufferedAmount > dataConnection.dataChannel.bufferedAmountLowThreshold) {
+                        setTimeout(sendNextChunk, 100); // 잠시 대기
+                        return;
+                    }
+
+                    const chunk = buffer.slice(offset, offset + CHUNK_SIZE);
+                    dataConnection.send({ type: 'file_chunk', chunk: chunk });
+                    offset += chunk.byteLength;
+                    
+                    // 재귀적으로 다음 청크 전송 (이벤트 루프에 부담 덜 줌)
+                    setTimeout(sendNextChunk, 0); 
+                };
+                
+                sendNextChunk();
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+
+        // --- 6. 하단 컨트롤 버튼 ---
+
+        // 마이크 켜기/끄기
+        document.getElementById('mic-btn').onclick = () => {
+            if (!localStream) return;
+            isMicOn = !isMicOn;
+            localStream.getAudioTracks()[0].enabled = isMicOn;
+            
+            const btn = document.getElementById('mic-btn');
+            btn.classList.toggle('on', isMicOn);
+            btn.classList.toggle('off', !isMicOn);
+            btn.innerHTML = isMicOn ? '🎤' : '🔇';
+        };
+
+        // 카메라 켜기/끄기
+        document.getElementById('video-btn').onclick = () => {
+            if (!localStream) return;
+            isVideoOn = !isVideoOn;
+            localStream.getVideoTracks()[0].enabled = isVideoOn;
+            
+            const btn = document.getElementById('video-btn');
+            btn.classList.toggle('on', isVideoOn);
+            btn.classList.toggle('off', !isVideoOn);
+            btn.innerHTML = isVideoOn ? '📷' : '🚫';
+        };
+
+        // 카메라 전환
+        document.getElementById('switch-cam-btn').onclick = async () => {
+            if (videoDevices.length > 1 && !isScreenSharing) {
+                currentVideoDeviceIndex = (currentVideoDeviceIndex + 1) % videoDevices.length;
+                const newVideoId = videoDevices[currentVideoDeviceIndex].deviceId;
+                await startLocalMedia(newVideoId); // 새 스트림으로 교체
+            } else if (isScreenSharing) {
+                // 화면 공유 중지 (카메라로 복귀)
+                await startLocalMedia(videoDevices[currentVideoDeviceIndex]?.deviceId);
+                isScreenSharing = false;
+                document.getElementById('share-screen-btn').classList.remove('on');
+            }
+        };
+
+        // 화면 공유
+        document.getElementById('share-screen-btn').onclick = async () => {
+            if (isScreenSharing) {
+                // 화면 공유 중지 (카메라로 복귀)
+                await startLocalMedia(videoDevices[currentVideoDeviceIndex]?.deviceId);
+                isScreenSharing = false;
+                document.getElementById('share-screen-btn').classList.remove('on');
+                document.getElementById('switch-cam-btn').classList.toggle('hidden', videoDevices.length <= 1);
+            } else {
+                // 화면 공유 시작
+                try {
+                    const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                        video: true,
+                        audio: true // 시스템 오디오 공유 시도
+                    });
+                    
+                    // 화면 공유 스트림으로 교체
+                    const screenVideoTrack = screenStream.getVideoTracks()[0];
+                    const screenAudioTrack = screenStream.getAudioTracks()[0];
+                    
+                    if (currentCall) {
+                        currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video').replaceTrack(screenVideoTrack);
+                        if (screenAudioTrack) {
+                             currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio').replaceTrack(screenAudioTrack);
+                        }
+                    }
+                    
+                    // 로컬 비디오도 화면 공유로 변경 (선택 사항)
+                    localVideo.srcObject = screenStream;
+                    localStream = screenStream; // 로컬 스트림을 화면 공유로 교체
+                    
+                    isScreenSharing = true;
+                    document.getElementById('share-screen-btn').classList.add('on');
+                    document.getElementById('switch-cam-btn').classList.remove('hidden'); // 복귀 버튼으로 활성화
+
+                    // 화면 공유 중지 버튼 클릭 시 원래 카메라로 복귀
+                    screenVideoTrack.onended = () => {
+                        if (isScreenSharing) { // 사용자가 수동 중지 안했을 때만
+                            document.getElementById('share-screen-btn').click();
+                        }
+                    };
+
+                } catch (err) {
+                    console.error("화면 공유 실패:", err);
+                }
+            }
+        };
+
+        // 화면 확대 (Theater Mode) / PIP
+        document.getElementById('enlarge-btn').onclick = async () => {
+            const videoContainer = document.getElementById('video-container');
+            videoContainer.classList.toggle('theater-mode');
+            
+            if (videoContainer.classList.contains('theater-mode')) {
+                // 확대 모드: 원격 비디오를 PIP로
+                if (remoteVideo.srcObject && document.pictureInPictureEnabled) {
+                    try {
+                        await remoteVideo.requestPictureInPicture();
+                    } catch (err) {
+                        console.error("PIP 시작 실패:", err);
+                    }
+                }
+            } else {
+                // 축소 모드: PIP 종료
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                }
+            }
+        };
+
+        // 녹화
+        document.getElementById('record-btn').onclick = () => {
+            if (!remoteStream) {
+                alert("상대방의 영상이 연결되지 않아 녹화할 수 없습니다.");
+                return;
+            }
+            
+            const btn = document.getElementById('record-btn');
+            if (isRecording) {
+                // 녹화 중지
+                mediaRecorder.stop();
+                isRecording = false;
+                btn.classList.remove('off'); // 빨간색 중지
+                btn.innerHTML = '🔴';
+            } else {
+                // 녹화 시작
+                recordedChunks = [];
+                
+                // (고급: 로컬과 원격을 합치려면 Canvas에 그려야 함)
+                // 여기서는 간단하게 원격 스트림만 녹화
+                const options = { mimeType: 'video/webm; codecs=vp9' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                     options.mimeType = 'video/webm; codecs=vp8';
+                     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                         options.mimeType = 'video/webm';
+                     }
+                }
+                
+                mediaRecorder = new MediaRecorder(remoteStream, options);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `recording_${new Date().toISOString()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                btn.classList.add('off'); // 녹화 중 (빨간색)
+                btn.innerHTML = '■';
+            }
+        };
+
+        // 판서 (새 창)
+        document.getElementById('whiteboard-btn').onclick = () => {
+            if (whiteboardWindow && !whiteboardWindow.closed) {
+                whiteboardWindow.focus();
+            } else {
+                whiteboardWindow = window.open('', 'Whiteboard', 'width=1000,height=700,menubar=no,toolbar=no');
+                whiteboardWindow.document.write(getWhiteboardHTML());
+                whiteboardWindow.document.close();
+            }
+        };
+        
+        // 통화 종료
+        document.getElementById('end-call-btn').onclick = () => {
+            if (peer) {
+                peer.destroy(); // PeerJS 연결 완전 종료
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            
+            if(whiteboardWindow && !whiteboardWindow.closed) {
+                whiteboardWindow.close();
+            }
+            
+            // UI 초기화
+            loginScreen.style.display = 'block';
+            meetingRoom.style.display = 'none';
+            remoteVideo.srcObject = null;
+            localVideo.srcObject = null;
+            messagesLog.innerHTML = '';
+            
+            // 페이지 새로고침 (가장 간단한 초기화)
+            window.location.href = window.location.pathname;
+        };
+
+        // --- 7. 비디오 위 컨트롤 (캡처, 전체화면) ---
+        
+        // 전체화면 (네이티브)
+        document.getElementById('local-fullscreen-btn').onclick = () => toggleNativeFullscreen(localVideo);
+        document.getElementById('remote-fullscreen-btn').onclick = () => toggleNativeFullscreen(remoteVideo);
+
+        function toggleNativeFullscreen(videoElement) {
+            if (!document.fullscreenElement) {
+                videoElement.requestFullscreen().catch(err => {
+                    alert(`전체화면 오류: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // 캡처
+        document.getElementById('local-capture-btn').onclick = () => captureVideo(localVideo, 'local_capture.png');
+        document.getElementById('remote-capture-btn').onclick = () => captureVideo(remoteVideo, 'remote_capture.png');
+
+        function captureVideo(videoElement, filename) {
+            if (!videoElement.srcObject) {
+                alert("캡처할 영상이 없습니다.");
+                return;
+            }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        
+        
+        // --- 8. 판서 도구 (새 창 HTML/CSS/JS) ---
+        
+        function getWhiteboardHTML() {
+            // 새 창에 삽입될 HTML, CSS, JS (문자열)
+            // PDF/Canvas 라이브러리 로드 필요
+            
+            return `
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>판서 도구</title>
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>
+    <!-- html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"><\/script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f0f0f0; display: flex; }
+        #toolbar { 
+            width: 200px; background: #fff; padding: 1rem; box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column; gap: 1rem;
+        }
+        .tool-group { border-bottom: 1px solid #eee; padding-bottom: 1rem; }
+        .tool-group label { display: block; margin-bottom: 5px; font-weight: 600; }
+        .tool-group input, .tool-group button, .tool-group select { width: 100%; box-sizing: border-box; padding: 5px; }
+        .tool-group button { background: #3498db; color: white; border: none; padding: 10px; cursor: pointer; border-radius: 5px; }
+        .tool-group button:hover { background: #2980b9; }
+        .tool-group button.warning { background: #e74c3c; }
+        .tool-group button.warning:hover { background: #c0392b; }
+        
+        #canvas-container { flex: 1; padding: 1rem; position: relative; }
+        #whiteboard { 
+            background: #fff; 
+            border: 1px solid #ccc; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            cursor: crosshair;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        #page-nav { text-align: center; margin-top: 5px; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+    <div id="toolbar">
+        <div class="tool-group">
+            <label>도구</label>
+            <button id="pen-btn" style="background: #2ecc71;">펜</button>
+            <button id="eraser-btn">지우개</button>
+        </div>
+        <div class="tool-group">
+            <label for="color-picker">색상</label>
+            <input type="color" id="color-picker" value="#000000">
+        </div>
+        <div class="tool-group">
+            <label for="size-slider">굵기 (<span id="size-value">5</span>px)</label>
+            <input type="range" id="size-slider" min="1" max="50" value="5">
+        </div>
+        <div class="tool-group">
+            <label>페이지</label>
+            <button id="prev-page-btn">이전</button>
+            <span id="page-display" style="display: block; text-align: center; padding: 5px;">1 / 1</span>
+            <button id="next-page-btn">다음</button>
+            <button id="add-page-btn" style="background: #9b59b6; margin-top: 5px;">페이지 추가</button>
+        </div>
+        <div class="tool-group">
+            <label>관리</label>
+            <button id="clear-all-btn" class="warning">모두 지우기</button>
+        </div>
+        <div class="tool-group">
+            <label>저장</label>
+            <button id="save-png-btn">현재 페이지 (PNG)</button>
+            <button id="save-pdf-btn">현재 페이지 (PDF)</button>
+            <button id="save-all-pdf-btn">모든 페이지 (PDF)</button>
+        </div>
+    </div>
+    <div id="canvas-container">
+        <canvas id="whiteboard"></canvas>
+    </div>
+
+    <script>
+        // PDF 라이브러리 로드 확인
+        const { jsPDF } = window.jspdf;
+
+        const canvas = document.getElementById('whiteboard');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        
+        let isDrawing = false;
+        let isEraser = false;
+        let currentColor = '#000000';
+        let currentSize = 5;
+        
+        let pages = []; // 각 페이지의 canvas 데이터를 저장
+        let currentPageIndex = 0;
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            // 리사이즈 후 현재 페이지 다시 그리기
+            loadPage(currentPageIndex);
+        }
+        
+        window.onresize = resizeCanvas;
+
+        // 그리기
+        function startDrawing(e) {
+            isDrawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+            
+            ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+            ctx.strokeStyle = currentColor;
+            ctx.lineWidth = currentSize;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            ctx.closePath();
+            isDrawing = false;
+            // 현재 캔버스 상태 저장
+            savePage(currentPageIndex);
+        }
+        
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        // --- 툴바 로직 ---
+        document.getElementById('pen-btn').onclick = () => { isEraser = false; };
+        document.getElementById('eraser-btn').onclick = () => { isEraser = true; };
+        
+        const colorPicker = document.getElementById('color-picker');
+        colorPicker.onchange = (e) => { currentColor = e.target.value; };
+        
+        const sizeSlider = document.getElementById('size-slider');
+        const sizeValue = document.getElementById('size-value');
+        sizeSlider.oninput = (e) => { 
+            currentSize = e.target.value;
+            sizeValue.textContent = currentSize;
+        };
+        
+        document.getElementById('clear-all-btn').onclick = () => {
+            if (confirm('현재 페이지를 모두 지우시겠습니까?')) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                savePage(currentPageIndex); // 빈 페이지 저장
+            }
+        };
+
+        // --- 페이지 로직 ---
+        const pageDisplay = document.getElementById('page-display');
+
+        function updatePageDisplay() {
+            pageDisplay.textContent = \`\${currentPageIndex + 1} / \${pages.length}\`;
+        }
+        
+        function savePage(index) {
+            pages[index] = canvas.toDataURL('image/png');
+        }
+        
+        function loadPage(index) {
+            const dataUrl = pages[index];
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 먼저 지우고
+            
+            if (dataUrl) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                };
+                img.src = dataUrl;
+            }
+        }
+        
+        // 초기 1페이지 생성
+        function initializePages() {
+            pages.push(null); // 빈 1페이지
+            resizeCanvas(); // 캔버스 크기 설정 및 loadPage(0) 호출
+            updatePageDisplay();
+        }
+        
+        document.getElementById('add-page-btn').onclick = () => {
+            savePage(currentPageIndex); // 현재 페이지 저장
+            pages.push(null); // 새 빈 페이지 추가
+            currentPageIndex = pages.length - 1; // 새 페이지로 이동
+            loadPage(currentPageIndex);
+            updatePageDisplay();
+        };
+
+        document.getElementById('prev-page-btn').onclick = () => {
+            if (currentPageIndex > 0) {
+                savePage(currentPageIndex);
+                currentPageIndex--;
+                loadPage(currentPageIndex);
+                updatePageDisplay();
+            }
+        };
+        
+        document.getElementById('next-page-btn').onclick = () => {
+            if (currentPageIndex < pages.length - 1) {
+                savePage(currentPageIndex);
+                currentPageIndex++;
+                loadPage(currentPageIndex);
+                updatePageDisplay();
+            }
+        };
+        
+        initializePages();
+
+        // --- 저장 로직 ---
+        function download(href, filename) {
+             const a = document.createElement('a');
+             a.href = href;
+             a.download = filename;
+             document.body.appendChild(a);
+             a.click();
+             document.body.removeChild(a);
+        }
+
+        // PNG 저장
+        document.getElementById('save-png-btn').onclick = () => {
+            savePage(currentPageIndex); // 최신 상태 저장
+            download(pages[currentPageIndex], \`whiteboard_page_\${currentPageIndex + 1}.png\`);
+        };
+
+        // 현재 페이지 PDF 저장
+        document.getElementById('save-pdf-btn').onclick = () => {
+            savePage(currentPageIndex);
+            const doc = new jsPDF({
+                orientation: canvas.width > canvas.height ? 'l' : 'p',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+            doc.addImage(pages[currentPageIndex], 'PNG', 0, 0, canvas.width, canvas.height);
+            doc.save(\`whiteboard_page_\${currentPageIndex + 1}.pdf\`);
+        };
+        
+        // 모든 페이지 PDF 저장
+        document.getElementById('save-all-pdf-btn').onclick = () => {
+            savePage(currentPageIndex); // 마지막 페이지 저장
+            
+            const doc = new jsPDF({
+                orientation: canvas.width > canvas.height ? 'l' : 'p',
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+            
+            pages.forEach((pageData, index) => {
+                if (index > 0) {
+                    doc.addPage([canvas.width, canvas.height], canvas.width > canvas.height ? 'l' : 'p');
+                }
+                if (pageData) { // 빈 페이지가 아닐 경우
+                    doc.addImage(pageData, 'PNG', 0, 0, canvas.width, canvas.height);
+                }
+            });
+            
+            doc.save('whiteboard_all_pages.pdf');
+        };
+
+    <\/script>
+</body>
+</html>
+            `;
+        }
+
+    </script>
 </body>
 </html>
