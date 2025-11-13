@@ -2,1196 +2,151 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>교사-학생 WebRTC (PeerJS) 1:1</title>
-
-  <!-- PeerJS -->
+  <title>교사-학생 WebRTC (PeerJS)</title>
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <!-- jsPDF for whiteboard PDF export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
   <style>
-    :root {
-      --accent-blue: #1976d2;
-      --accent-red: #d32f2f;
-      --bg: #0f1115;
-      --panel: #171a21;
-      --text: #e6e6e6;
-      --muted: #9aa3af;
-      --green: #2e7d32;
-      --yellow: #f9a825;
-      --btn: #262b36;
-      --btn-hover: #303647;
-      --border: #2a2f3b;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
-    }
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      background: var(--panel);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
-    header h1 {
-      font-size: 18px;
-      margin: 0;
-      font-weight: 600;
-    }
-    #roleGate {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-      max-width: 980px;
-      margin: 24px auto;
-      padding: 16px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-    }
-    .row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    label {
-      display: block;
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-    input[type="text"], input[type="password"] {
-      width: 280px;
-      max-width: 100%;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #0c0e12;
-      color: var(--text);
-    }
-    input[type="text"]::placeholder, input[type="password"]::placeholder {
-      color: #667085;
-    }
-    button {
-      padding: 10px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--btn);
-      color: var(--text);
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-    button:hover { background: var(--btn-hover); }
-    button.primary { background: var(--accent-blue); border-color: #1a4a8a; }
-    button.danger { background: var(--accent-red); border-color: #8f1d1d; }
-    button.green { background: var(--green); border-color: #155717; }
-    button.yellow { background: var(--yellow); border-color: #a67300; color: #0f1115; }
-
-    #mainLayout {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: 10px;
-      padding: 10px;
-    }
-    #chatPanel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      height: calc(100vh - 100px);
-      position: sticky;
-      top: 74px;
-    }
-    #chatHeader {
-      padding: 10px;
-      border-bottom: 1px solid var(--border);
-    }
-    #chatMessages {
-      padding: 10px;
-      overflow-y: auto;
-    }
-    .message {
-      margin-bottom: 10px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: #12151c;
-      border: 1px solid #1e2330;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    .message .meta { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-    #chatInputRow {
-      padding: 10px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 8px;
-    }
-    #chatText {
-      flex: 1;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #0c0e12;
-      color: var(--text);
-    }
-    #fileInput { display: none; }
-
-    #videoPanel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-      gap: 8px;
-      height: calc(100vh - 100px);
-    }
-    #connectionStatus {
-      padding: 8px 10px;
-      border: 1px dashed #334155;
-      border-radius: 8px;
-      background: #10131a;
-      font-size: 14px;
-    }
-    #controlsRow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    #videos {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      height: 100%;
-    }
-    .videoBox {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      background: #0b0e13;
-      display: grid;
-      grid-template-rows: auto 1fr;
-    }
-    .videoToolbar {
-      display: flex;
-      gap: 6px;
-      padding: 6px;
-      border-bottom: 1px solid var(--border);
-      background: #121622;
-    }
-    video {
-      width: 100%;
-      height: 100%;
-      background: black;
-      object-fit: cover;
-    }
-    .pill {
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-      border: 1px solid var(--border);
-      color: var(--muted);
-    }
-    .badge {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      background: #0f172a;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-    }
-    .hidden { display: none !important; }
-
-    /* Floating chat during fullscreen-like expand */
-    #floatingChat {
-      position: fixed;
-      right: 10px;
-      top: 74px;
-      width: 320px;
-      height: calc(100vh - 84px);
-      z-index: 30;
-      display: none;
-    }
-    #floatingChat .panel {
-      width: 100%;
-      height: 100%;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      overflow: hidden;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-    }
-
-    /* Color states for mic/cam buttons */
-    .state-on { background: var(--accent-blue) !important; border-color: #1a4a8a !important; }
-    .state-off { background: var(--accent-red) !important; border-color: #8f1d1d !important; }
-
-    /* URL box */
-    #shareBox {
-      margin-top: 6px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-    }
-    #shareUrl {
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #0c0e12;
-      color: var(--text);
-      width: 100%;
-    }
-
-    /* Small helper text */
-    .help { color: var(--muted); font-size: 12px; }
+    body { margin:0; font-family:sans-serif; background:#111; color:#eee; }
+    #roleGate, #mainLayout { padding:20px; }
+    .hidden { display:none; }
+    video { width:100%; height:100%; background:black; }
+    #videos { display:flex; gap:10px; height:400px; }
+    .videoBox { flex:1; position:relative; }
+    #chatMessages { height:200px; overflow-y:auto; background:#222; padding:10px; }
+    .message { margin-bottom:6px; }
+    button { margin:4px; }
+    .state-on { background:#1976d2; color:white; }
+    .state-off { background:#d32f2f; color:white; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>교사-학생 1:1 화상 & 채팅 (PeerJS)</h1>
-    <div id="topInfo" class="help">HTTPS 환경에서 사용하세요. 카메라/마이크 권한을 허용해야 합니다.</div>
-  </header>
+  <h1>교사-학생 1:1 화상 & 채팅</h1>
 
-  <!-- Role gate -->
   <section id="roleGate">
-    <div class="row">
-      <div>
-        <label>역할 선택</label>
-        <button id="chooseTeacher" class="primary">교사로 시작</button>
-        <button id="chooseStudent">학생으로 시작</button>
-      </div>
-      <div id="teacherFields" class="hidden">
-        <label>교사 비밀번호</label>
-        <input type="password" id="teacherPass" placeholder="a123456!" />
-        <div class="row">
-          <button id="teacherStart" class="green">교사 시작</button>
-          <span class="help">교사 비밀번호가 맞아야 방을 생성합니다.</span>
-        </div>
-      </div>
-      <div id="studentFields" class="hidden">
-        <label>학생 이름</label>
-        <input type="text" id="studentName" placeholder="이름 입력" />
-        <label>화상 아이디</label>
-        <input type="text" id="roomId" placeholder="예: class-1234" />
-        <label>교사 비밀번호 (URL 없이 직접 접속 경우)</label>
-        <input type="password" id="roomPass" placeholder="a123456!" />
-        <div class="row">
-          <button id="studentJoin" class="green">학생 입장</button>
-          <span class="help">공유 URL로 입장하는 경우 비밀번호 없이 이름만 필요합니다.</span>
-        </div>
-      </div>
+    <button id="chooseTeacher">교사로 시작</button>
+    <button id="chooseStudent">학생으로 시작</button>
+
+    <div id="teacherFields" class="hidden">
+      <input type="password" id="teacherPass" placeholder="교사 비번 a123456!" />
+      <button id="teacherStart">교사 시작</button>
     </div>
-    <div id="shareBoxWrap" class="hidden">
-      <label>공유할 접속 주소 URL</label>
-      <div id="shareBox">
-        <input type="text" id="shareUrl" readonly />
-        <button id="copyUrl">복사</button>
-      </div>
-      <div class="help">이 URL을 학생에게 전달하세요. 학생은 비밀번호 없이 이름만으로 입장할 수 있습니다.</div>
+
+    <div id="studentFields" class="hidden">
+      <input type="text" id="studentName" placeholder="이름" />
+      <input type="text" id="roomId" placeholder="화상 아이디" />
+      <input type="password" id="roomPass" placeholder="비번 (URL 없이 직접 접속시)" />
+      <button id="studentJoin">학생 입장</button>
     </div>
   </section>
 
-  <!-- Main layout -->
   <section id="mainLayout" class="hidden">
-    <!-- Chat panel (left) -->
-    <aside id="chatPanel">
-      <div id="chatHeader">
-        <strong>채팅 & 파일</strong>
-        <div class="help">파일 전송 지원 (최대 ~100MB, 분할 전송)</div>
-      </div>
-      <div id="chatMessages"></div>
-      <div id="chatInputRow">
-        <input type="text" id="chatText" placeholder="메시지 입력..." />
-        <button id="sendMsg" class="primary">보내기</button>
-        <button id="attachFile">파일</button>
-        <input type="file" id="fileInput" />
-      </div>
-    </aside>
-
-    <!-- Video panel (right) -->
-    <main id="videoPanel">
-      <div id="connectionStatus">대기 중: 상대가 접속하면 자동으로 연결됩니다.</div>
-      <div id="controlsRow">
-        <button id="toggleMic" class="state-on">마이크 켜기/끄기</button>
-        <button id="toggleCam" class="state-on">카메라 켜기/끄기</button>
-        <button id="switchCam">카메라 전환</button>
-        <button id="screenShare">화면 공유</button>
-        <button id="startRecord" class="yellow">녹화 시작</button>
-        <button id="stopRecord" class="danger" disabled>녹화 종료</button>
-        <button id="openWhiteboard">판서도구</button>
-        <button id="screenshotBtn">화면 캡쳐</button>
-      </div>
-      <div id="videos">
-        <div class="videoBox" id="localBox">
-          <div class="videoToolbar">
-            <span class="pill">내 화면</span>
-            <button class="primary" id="localFullscreen">전체화면</button>
-            <button class="primary" id="localExpand">화면 키우기 (PiP)</button>
-          </div>
-          <video id="localVideo" autoplay playsinline muted></video>
-          <span class="badge" id="localBadge">로컬</span>
-        </div>
-        <div class="videoBox" id="remoteBox">
-          <div class="videoToolbar">
-            <span class="pill">상대 화면</span>
-            <button class="primary" id="remoteFullscreen">전체화면</button>
-            <button class="primary" id="remoteExpand">화면 키우기 (PiP)</button>
-          </div>
-          <video id="remoteVideo" autoplay playsinline></video>
-          <span class="badge" id="remoteBadge">원격</span>
-        </div>
-      </div>
-    </main>
+    <div id="connectionStatus">대기 중...</div>
+    <div id="videos">
+      <div class="videoBox"><video id="localVideo" autoplay muted playsinline></video></div>
+      <div class="videoBox"><video id="remoteVideo" autoplay playsinline></video></div>
+    </div>
+    <div>
+      <button id="toggleMic" class="state-on">마이크</button>
+      <button id="toggleCam" class="state-on">카메라</button>
+    </div>
+    <div id="chatMessages"></div>
+    <input type="text" id="chatText" placeholder="메시지 입력" />
+    <button id="sendMsg">보내기</button>
   </section>
 
-  <!-- Floating chat (appears during near-fullscreen expand) -->
-  <div id="floatingChat">
-    <div class="panel">
-      <div id="floatingHeader" style="padding:10px;border-bottom:1px solid var(--border);">
-        <strong>채팅</strong> <span class="help">전체화면에 가까운 모드에서도 항상 보입니다</span>
-      </div>
-      <div id="floatingMessages" style="padding:10px;overflow-y:auto;"></div>
-      <div style="padding:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
-        <input type="text" id="floatingText" placeholder="메시지 입력..." style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:#0c0e12;color:var(--text);" />
-        <button id="floatingSend" class="primary">보내기</button>
-      </div>
-    </div>
-  </div>
+<script>
+const PASSWORD = "a123456!";
+let role=null, peer=null, conn=null, mediaCall=null;
+let localStream=null, remoteStream=null;
+const localVideo=document.getElementById("localVideo");
+const remoteVideo=document.getElementById("remoteVideo");
 
-  <script>
-    // ---- State ----
-    const PASSWORD = "a123456!";
-    let role = null; // "teacher" | "student"
-    let peer = null;
-    let conn = null; // data connection
-    let mediaCall = null;
-    let localStream = null;
-    let remoteStream = null;
-    let currentVideoDeviceId = null;
-    let facingMode = "user"; // for tablet/mobile camera switch
-    let recorder = null;
-    let recordedChunks = [];
-    let roomId = "";
-    let bypassToken = ""; // when teacher generates share URL
+function appendMessage(who,text){
+  const div=document.createElement("div");
+  div.className="message";
+  div.textContent=`${who}: ${text}`;
+  document.getElementById("chatMessages").appendChild(div);
+}
 
-    // ---- UI refs ----
-    const roleGate = document.getElementById("roleGate");
-    const teacherFields = document.getElementById("teacherFields");
-    const studentFields = document.getElementById("studentFields");
-    const teacherPass = document.getElementById("teacherPass");
-    const roomPass = document.getElementById("roomPass");
-    const chooseTeacher = document.getElementById("chooseTeacher");
-    const chooseStudent = document.getElementById("chooseStudent");
-    const teacherStart = document.getElementById("teacherStart");
-    const studentStart = document.getElementById("studentJoin");
-    const studentNameInput = document.getElementById("studentName");
+document.getElementById("chooseTeacher").onclick=()=> {
+  role="teacher";
+  document.getElementById("teacherFields").classList.remove("hidden");
+  document.getElementById("studentFields").classList.add("hidden");
+};
+document.getElementById("chooseStudent").onclick=()=> {
+  role="student";
+  document.getElementById("studentFields").classList.remove("hidden");
+  document.getElementById("teacherFields").classList.add("hidden");
+};
 
-    const shareBoxWrap = document.getElementById("shareBoxWrap");
-    const shareUrlInput = document.getElementById("shareUrl");
-    const copyUrlBtn = document.getElementById("copyUrl");
+document.getElementById("teacherStart").onclick=async()=>{
+  if(document.getElementById("teacherPass").value!==PASSWORD){alert("비번 오류");return;}
+  role="teacher";
+  const roomId="class-"+Math.random().toString(36).substr(2,6);
+  await initPeer(roomId);
+  document.getElementById("mainLayout").classList.remove("hidden");
+  document.getElementById("roleGate").classList.add("hidden");
+  appendMessage("시스템","교사 방 생성: "+roomId);
+};
 
-    const mainLayout = document.getElementById("mainLayout");
-    const connectionStatus = document.getElementById("connectionStatus");
+document.getElementById("studentJoin").onclick=async()=>{
+  const roomId=document.getElementById("roomId").value.trim();
+  if(!roomId){alert("아이디 입력");return;}
+  if(document.getElementById("roomPass").value!==PASSWORD){alert("비번 오류");return;}
+  await initPeer("student-"+Math.random().toString(36).substr(2,6), roomId);
+  document.getElementById("mainLayout").classList.remove("hidden");
+  document.getElementById("roleGate").classList.add("hidden");
+};
 
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-
-    const toggleMicBtn = document.getElementById("toggleMic");
-    const toggleCamBtn = document.getElementById("toggleCam");
-    const switchCamBtn = document.getElementById("switchCam");
-    const screenShareBtn = document.getElementById("screenShare");
-    const startRecordBtn = document.getElementById("startRecord");
-    const stopRecordBtn = document.getElementById("stopRecord");
-    const openWhiteboardBtn = document.getElementById("openWhiteboard");
-    const screenshotBtn = document.getElementById("screenshotBtn");
-
-    const localFullscreenBtn = document.getElementById("localFullscreen");
-    const remoteFullscreenBtn = document.getElementById("remoteFullscreen");
-    const localExpandBtn = document.getElementById("localExpand");
-    const remoteExpandBtn = document.getElementById("remoteExpand");
-
-    const chatMessages = document.getElementById("chatMessages");
-    const chatText = document.getElementById("chatText");
-    const sendMsgBtn = document.getElementById("sendMsg");
-    const attachFileBtn = document.getElementById("attachFile");
-    const fileInput = document.getElementById("fileInput");
-
-    const floatingChat = document.getElementById("floatingChat");
-    const floatingMessages = document.getElementById("floatingMessages");
-    const floatingText = document.getElementById("floatingText");
-    const floatingSend = document.getElementById("floatingSend");
-
-    // ---- Helpers ----
-    function logStatus(msg) {
-      connectionStatus.textContent = msg;
-    }
-    function appendMessage(who, text) {
-      const el = document.createElement("div");
-      el.className = "message";
-      el.innerHTML = `<div class="meta">${who}</div><div>${text}</div>`;
-      chatMessages.appendChild(el);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-
-      // Mirror to floating panel
-      const el2 = document.createElement("div");
-      el2.className = "message";
-      el2.innerHTML = `<div class="meta">${who}</div><div>${text}</div>`;
-      floatingMessages.appendChild(el2);
-      floatingMessages.scrollTop = floatingMessages.scrollHeight;
-    }
-    function setMicState(on) {
-      toggleMicBtn.classList.toggle("state-on", on);
-      toggleMicBtn.classList.toggle("state-off", !on);
-    }
-    function setCamState(on) {
-      toggleCamBtn.classList.toggle("state-on", on);
-      toggleCamBtn.classList.toggle("state-off", !on);
-    }
-    function uuid(n=8) {
-      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-      let s = "";
-      for (let i=0;i<n;i++) s += chars[Math.floor(Math.random()*chars.length)];
-      return s;
-    }
-    function getQuery() {
-      const q = new URLSearchParams(location.search);
-      return Object.fromEntries(q.entries());
-    }
-    function buildShareUrl(roomId, token) {
-      const base = location.origin + location.pathname;
-      const url = new URL(base);
-      url.searchParams.set("room", roomId);
-      url.searchParams.set("token", token);
-      return url.toString();
-    }
-    function sanitizeFilename(name) {
-      return name.replace(/[\/\\?%*:|"<>]/g, "_");
-    }
-
-    // Chunked file transfer via data channel
-    const MAX_CHUNK = 64 * 1024; // 64KB per chunk
-    function sendFile(file) {
-      if (!conn || !conn.open) {
-        appendMessage("시스템", "연결되지 않아 파일을 보낼 수 없습니다.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const arrayBuf = reader.result;
-        const total = arrayBuf.byteLength;
-        const fileMeta = {
-          type: "file-meta",
-          name: file.name,
-          size: total
-        };
-        conn.send(fileMeta);
-        appendMessage("나", `파일 전송 시작: ${file.name} (${Math.round(total/1024/1024)} MB)`);
-
-        let offset = 0;
-        while (offset < total) {
-          const chunk = arrayBuf.slice(offset, offset + MAX_CHUNK);
-          conn.send({ type: "file-chunk", chunk });
-          offset += MAX_CHUNK;
-        }
-        conn.send({ type: "file-end" });
-        appendMessage("나", `파일 전송 완료: ${file.name}`);
-      };
-      reader.readAsArrayBuffer(file);
-    }
-
-    // Receive file assembly
-    let incomingFileMeta = null;
-    let incomingFileBuffers = [];
-    function handleData(data) {
-      if (typeof data === "string") {
-        appendMessage("상대", data);
-        return;
-      }
-      if (data && data.type === "file-meta") {
-        incomingFileMeta = data;
-        incomingFileBuffers = [];
-        appendMessage("시스템", `파일 수신 준비: ${data.name} (${Math.round(data.size/1024/1024)} MB)`);
-      } else if (data && data.type === "file-chunk") {
-        incomingFileBuffers.push(data.chunk);
-      } else if (data && data.type === "file-end") {
-        const blob = new Blob(incomingFileBuffers);
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = sanitizeFilename(incomingFileMeta.name);
-        const msg = document.createElement("div");
-        msg.className = "message";
-        msg.innerHTML = `<div class="meta">파일 수신</div>
-          <div>파일명: ${incomingFileMeta.name}</div>
-          <div><button class="primary">다운로드</button></div>`;
-        const btn = msg.querySelector("button");
-        btn.addEventListener("click", () => a.click());
-        chatMessages.appendChild(msg);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-
-        // Also mirror to floating chat (with download)
-        const msg2 = document.createElement("div");
-        msg2.className = "message";
-        msg2.innerHTML = `<div class="meta">파일 수신</div>
-          <div>파일명: ${incomingFileMeta.name}</div>
-          <div><button class="primary">다운로드</button></div>`;
-        const btn2 = msg2.querySelector("button");
-        btn2.addEventListener("click", () => a.click());
-        floatingMessages.appendChild(msg2);
-        incomingFileMeta = null;
-        incomingFileBuffers = [];
-      }
-    }
-
-    // ---- Role selection ----
-    chooseTeacher.addEventListener("click", () => {
-      role = "teacher";
-      teacherFields.classList.remove("hidden");
-      studentFields.classList.add("hidden");
-    });
-    chooseStudent.addEventListener("click", () => {
-      role = "student";
-      studentFields.classList.remove("hidden");
-      teacherFields.classList.add("hidden");
-
-      // Autofill from share URL if present
-      const q = getQuery();
-      if (q.room) {
-        document.getElementById("roomId").value = q.room;
-      }
-    });
-
-    teacherStart.addEventListener("click", async () => {
-      if (teacherPass.value !== PASSWORD) {
-        alert("비밀번호가 올바르지 않습니다.");
-        return;
-      }
-      role = "teacher";
-      // Create roomId & bypass token
-      roomId = `class-${uuid(6)}`;
-      bypassToken = uuid(12);
-      shareBoxWrap.classList.remove("hidden");
-      shareUrlInput.value = buildShareUrl(roomId, bypassToken);
-
-      await initPeerAndMedia();
-      logStatus(`교사 모드: 방 생성됨 (아이디: ${roomId}). 학생 접속을 기다리는 중...`);
-    });
-
-    copyUrlBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(shareUrlInput.value);
-        alert("URL이 복사되었습니다.");
-      } catch {
-        alert("복사 실패: 수동으로 복사하세요.");
-      }
-    });
-
-    studentStart.addEventListener("click", async () => {
-      const name = (studentNameInput.value || "").trim();
-      if (!name) { alert("이름을 입력하세요."); return; }
-
-      const q = getQuery();
-      if (q.room && q.token) {
-        // Bypass password via URL
-        roomId = q.room;
-        await initPeerAndMedia(name);
-        logStatus(`학생 모드(URL): 방 (${roomId}) 입장 시도 중...`);
-      } else {
-        // Direct entry requires password
-        if ((roomPass.value || "") !== PASSWORD) {
-          alert("비밀번호가 올바르지 않습니다. 공유 URL로 입장하면 비밀번호가 필요 없습니다.");
-          return;
-        }
-        roomId = (document.getElementById("roomId").value || "").trim();
-        if (!roomId) { alert("화상 아이디를 입력하세요."); return; }
-        await initPeerAndMedia(name);
-        logStatus(`학생 모드: 방 (${roomId}) 입장 시도 중...`);
-      }
-    });
-
-    // ---- Init PeerJS + Media ----
-    async function initPeerAndMedia(displayName = "") {
-      // Prepare local media (prefer tablet camera support via facingMode)
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const hasVideoInput = devices.some(d => d.kind === "videoinput");
-        const videoConstraint = hasVideoInput
-          ? { video: { facingMode }, audio: true }
-          : { video: false, audio: true }; // audio-only if no camera
-        localStream = await navigator.mediaDevices.getUserMedia(videoConstraint);
-        localVideo.srcObject = localStream;
-        setMicState(true);
-        setCamState(hasVideoInput);
-      } catch (e) {
-        alert("카메라/마이크 접근에 실패했습니다. 권한과 장치를 확인하세요.");
-        return;
-      }
-
-      // Init peer
-      const myId = role === "teacher" ? roomId : `student-${uuid(6)}`;
-      peer = new Peer(myId, {
-        // Using default cloud PeerServer; for production use your own server for reliability.
-        debug: 2
-      });
-
-      peer.on("open", (id) => {
-        mainLayout.classList.remove("hidden");
-        roleGate.classList.add("hidden");
-        if (role === "teacher") {
-          appendMessage("시스템", `방이 준비되었습니다. 학생 접속을 기다립니다. 아이디: ${roomId}`);
-        } else {
-          appendMessage("시스템", `내 ID: ${id}`);
-          // Connect data channel to teacher (roomId)
-          conn = peer.connect(roomId, { reliable: true });
-          bindConnEvents(conn, displayName);
-          // Call teacher
-          mediaCall = peer.call(roomId, localStream, { metadata: { name: displayName } });
-          bindCallEvents(mediaCall);
-        }
-      });
-
-      peer.on("connection", (connection) => {
-        // Teacher receives student connection
-        if (role !== "teacher") return;
-        conn = connection;
-        bindConnEvents(conn, "학생");
-      });
-
-      peer.on("call", (call) => {
-        // Teacher answers incoming call
-        if (role !== "teacher") return;
-        mediaCall = call;
-        mediaCall.answer(localStream);
-        bindCallEvents(mediaCall);
-      });
-
-      peer.on("error", (err) => {
-        appendMessage("오류", String(err));
+async function initPeer(myId, connectTo=null){
+  localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+  localVideo.srcObject=localStream;
+  peer=new Peer(myId);
+  peer.on("open",id=>{
+    if(role==="student" && connectTo){
+      conn=peer.connect(connectTo);
+      conn.on("data",d=>appendMessage("상대",d));
+      mediaCall=peer.call(connectTo,localStream);
+      // 학생도 상대방 스트림 받기
+      mediaCall.on("stream",stream=>{
+        remoteStream=stream;
+        remoteVideo.srcObject=stream;
+        appendMessage("시스템","화상 연결됨");
       });
     }
-
-    function bindConnEvents(c, displayName) {
-      c.on("open", () => {
-        appendMessage("시스템", "데이터 연결이 설정되었습니다. 채팅 및 파일 전송 가능.");
-        // Send greeting
-        c.send(`[${role === "teacher" ? "교사" : "학생"}] 연결되었습니다.`);
-        logStatus("상대가 접속했습니다. 화상 연결 중...");
-      });
-      c.on("data", (data) => {
-        handleData(data);
-      });
-      c.on("close", () => {
-        appendMessage("시스템", "데이터 연결이 종료되었습니다.");
-      });
-    }
-
-    function bindCallEvents(call) {
-      call.on("stream", (stream) => {
-        remoteStream = stream;
-        remoteVideo.srcObject = stream;
-        appendMessage("시스템", "화상 연결이 완료되었습니다. 서로의 화면이 표시됩니다.");
-        logStatus("연결됨: 화상 및 채팅 사용 가능");
-      });
-      call.on("close", () => {
-        appendMessage("시스템", "화상 연결이 종료되었습니다.");
-      });
-      call.on("error", (err) => {
-        appendMessage("오류", "통화 오류: " + String(err));
-      });
-    }
-
-    // ---- Controls ----
-    toggleMicBtn.addEventListener("click", () => {
-      if (!localStream) return;
-      const tracks = localStream.getAudioTracks();
-      const enabled = tracks.some(t => t.enabled);
-      tracks.forEach(t => t.enabled = !enabled);
-      setMicState(!enabled);
+  });
+  peer.on("connection",c=>{
+    conn=c;
+    conn.on("data",d=>appendMessage("상대",d));
+  });
+  peer.on("call",call=>{
+    mediaCall=call;
+    call.answer(localStream);
+    // 교사도 상대방 스트림 받기
+    call.on("stream",stream=>{
+      remoteStream=stream;
+      remoteVideo.srcObject=stream;
+      appendMessage("시스템","화상 연결됨");
     });
-    toggleCamBtn.addEventListener("click", () => {
-      if (!localStream) return;
-      const tracks = localStream.getVideoTracks();
-      const enabled = tracks.some(t => t.enabled);
-      tracks.forEach(t => t.enabled = !enabled);
-      setCamState(!enabled);
-    });
+  });
+}
 
-    switchCamBtn.addEventListener("click", async () => {
-      // Switch between front/back cameras if on tablet/mobile
-      facingMode = (facingMode === "user") ? "environment" : "user";
-      try {
-        const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
-        // Replace tracks in local stream
-        const newVideoTrack = newStream.getVideoTracks()[0];
-        const newAudioTrack = newStream.getAudioTracks()[0];
-        const [oldVideoTrack] = localStream.getVideoTracks();
-        const [oldAudioTrack] = localStream.getAudioTracks();
-        if (oldVideoTrack) oldVideoTrack.stop();
-        if (oldAudioTrack) oldAudioTrack.stop();
-        if (newVideoTrack) localStream.removeTrack(oldVideoTrack);
-        if (newAudioTrack) localStream.removeTrack(oldAudioTrack);
-        if (newVideoTrack) localStream.addTrack(newVideoTrack);
-        if (newAudioTrack) localStream.addTrack(newAudioTrack);
-        localVideo.srcObject = localStream;
+document.getElementById("sendMsg").onclick=()=>{
+  const txt=document.getElementById("chatText").value;
+  appendMessage("나",txt);
+  if(conn) conn.send(txt);
+  document.getElementById("chatText").value="";
+};
 
-        // Replace tracks in the ongoing call (if any)
-        if (mediaCall && mediaCall.peerConnection) {
-          const senders = mediaCall.peerConnection.getSenders();
-          const vSender = senders.find(s => s.track && s.track.kind === "video");
-          const aSender = senders.find(s => s.track && s.track.kind === "audio");
-          if (vSender && newVideoTrack) await vSender.replaceTrack(newVideoTrack);
-          if (aSender && newAudioTrack) await aSender.replaceTrack(newAudioTrack);
-        }
-      } catch (e) {
-        alert("카메라 전환 실패: " + e.message);
-      }
-    });
-
-    screenShareBtn.addEventListener("click", async () => {
-      try {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        const screenTrack = displayStream.getVideoTracks()[0];
-
-        // Replace video sender with screen track
-        if (mediaCall && mediaCall.peerConnection) {
-          const sender = mediaCall.peerConnection.getSenders().find(s => s.track && s.track.kind === "video");
-          if (sender) await sender.replaceTrack(screenTrack);
-          localVideo.srcObject = displayStream;
-
-          screenTrack.onended = async () => {
-            // Restore camera
-            const camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
-            const camTrack = camStream.getVideoTracks()[0];
-            if (sender && camTrack) await sender.replaceTrack(camTrack);
-            // Swap in local stream track
-            const [oldVideoTrack] = localStream.getVideoTracks();
-            if (oldVideoTrack) oldVideoTrack.stop();
-            localStream.removeTrack(oldVideoTrack);
-            localStream.addTrack(camTrack);
-            localVideo.srcObject = localStream;
-          };
-        }
-      } catch (e) {
-        alert("화면 공유 실패: " + e.message);
-      }
-    });
-
-    // Per-video fullscreen
-    localFullscreenBtn.addEventListener("click", () => {
-      document.getElementById("localBox").requestFullscreen?.();
-    });
-    remoteFullscreenBtn.addEventListener("click", () => {
-      document.getElementById("remoteBox").requestFullscreen?.();
-    });
-
-    // Near-fullscreen expand with PiP
-    async function enterExpand(targetVideo, otherVideo) {
-      // Show floating chat
-      floatingChat.style.display = "block";
-      // Request PiP for the other video if available
-      try {
-        if (document.pictureInPictureEnabled && !otherVideo.disablePictureInPicture) {
-          await otherVideo.requestPictureInPicture();
-        }
-      } catch (_) { /* ignore */ }
-
-      // Enlarge target panel by hiding main layout’s chat and stretching panel via CSS tweaks
-      document.getElementById("chatPanel").style.display = "none";
-      document.getElementById("videoPanel").style.height = "calc(100vh - 84px)";
-      document.getElementById("videos").style.gridTemplateColumns = "1fr";
-      if (targetVideo === localVideo) {
-        document.getElementById("remoteBox").classList.add("hidden");
-        document.getElementById("localBox").classList.remove("hidden");
-      } else {
-        document.getElementById("localBox").classList.add("hidden");
-        document.getElementById("remoteBox").classList.remove("hidden");
-      }
-    }
-    function exitExpand() {
-      floatingChat.style.display = "none";
-      document.getElementById("chatPanel").style.display = "";
-      document.getElementById("videoPanel").style.height = "calc(100vh - 100px)";
-      document.getElementById("videos").style.gridTemplateColumns = "1fr 1fr";
-      document.getElementById("localBox").classList.remove("hidden");
-      document.getElementById("remoteBox").classList.remove("hidden");
-      document.exitPictureInPicture?.().catch(()=>{});
-    }
-
-    localExpandBtn.addEventListener("click", () => {
-      const expanded = floatingChat.style.display === "block";
-      if (!expanded) enterExpand(localVideo, remoteVideo);
-      else exitExpand();
-    });
-    remoteExpandBtn.addEventListener("click", () => {
-      const expanded = floatingChat.style.display === "block";
-      if (!expanded) enterExpand(remoteVideo, localVideo);
-      else exitExpand();
-    });
-
-    // Screenshot (download to default downloads)
-    screenshotBtn.addEventListener("click", async () => {
-      try {
-        const canvas = document.createElement("canvas");
-        const v = remoteVideo.srcObject ? remoteVideo : localVideo;
-        const track = v.srcObject && v.srcObject.getVideoTracks()[0];
-        const settings = track ? track.getSettings() : {};
-        const w = settings.width || v.videoWidth || 1280;
-        const h = settings.height || v.videoHeight || 720;
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(v, 0, 0, w, h);
-        const url = canvas.toDataURL("image/png");
-        const a = document.createElement("a");
-        a.href = url;
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        a.download = `screenshot-${ts}.png`;
-        a.click();
-        appendMessage("시스템", "캡쳐를 다운로드했습니다.");
-      } catch (e) {
-        alert("캡쳐 실패: " + e.message);
-      }
-    });
-
-    // Recording (local mixed capture)
-    startRecordBtn.addEventListener("click", async () => {
-      if (!localStream && !remoteStream) {
-        alert("녹화할 스트림이 없습니다.");
-        return;
-      }
-      // Attempt to mix local + remote by capturing the remote video element if present
-      let captureStream = null;
-      try {
-        if (remoteVideo.captureStream) {
-          captureStream = remoteVideo.captureStream();
-        } else if (remoteVideo.mozCaptureStream) {
-          captureStream = remoteVideo.mozCaptureStream();
-        }
-      } catch {}
-      // Fallback: record local stream
-      const targetStream = captureStream || remoteStream || localStream;
-      try {
-        recorder = new MediaRecorder(targetStream, { mimeType: "video/webm;codecs=vp9,opus" });
-      } catch {
-        recorder = new MediaRecorder(targetStream);
-      }
-      recordedChunks = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(recordedChunks, { type: recorder.mimeType || "video/webm" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        a.download = `recording-${ts}.webm`;
-        a.click();
-        appendMessage("시스템", "녹화 파일을 다운로드했습니다.");
-      };
-      recorder.start();
-      startRecordBtn.disabled = true;
-      stopRecordBtn.disabled = false;
-      appendMessage("시스템", "녹화를 시작했습니다.");
-    });
-
-    stopRecordBtn.addEventListener("click", () => {
-      if (!recorder) return;
-      recorder.stop();
-      startRecordBtn.disabled = false;
-      stopRecordBtn.disabled = true;
-      appendMessage("시스템", "녹화를 종료했습니다.");
-    });
-
-    // Chat send
-    function sendTextMessage(text) {
-      if (!text.trim()) return;
-      appendMessage("나", text);
-      if (conn && conn.open) {
-        conn.send(text);
-      }
-    }
-    sendMsgBtn.addEventListener("click", () => {
-      sendTextMessage(chatText.value);
-      chatText.value = "";
-    });
-    chatText.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        sendTextMessage(chatText.value);
-        chatText.value = "";
-      }
-    });
-
-    // Floating chat input mirrors to main
-    floatingSend.addEventListener("click", () => {
-      sendTextMessage(floatingText.value);
-      floatingText.value = "";
-    });
-    floatingText.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        sendTextMessage(floatingText.value);
-        floatingText.value = "";
-      }
-    });
-
-    // File attach
-    attachFileBtn.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", () => {
-      const f = fileInput.files[0];
-      if (!f) return;
-      if (f.size > 110 * 1024 * 1024) {
-        alert("파일이 너무 큽니다. 최대 약 100MB까지 권장합니다.");
-        return;
-      }
-      sendFile(f);
-      fileInput.value = "";
-    });
-
-    // ---- Whiteboard tool (new window) ----
-    let whiteboardWin = null;
-    openWhiteboardBtn.addEventListener("click", () => {
-      if (whiteboardWin && !whiteboardWin.closed) {
-        whiteboardWin.focus();
-        return;
-      }
-      whiteboardWin = window.open("", "_blank", "width=1000,height=700");
-      const doc = whiteboardWin.document;
-      doc.title = "판서도구";
-      doc.body.style.margin = "0";
-      doc.body.style.background = "#0f1115";
-      doc.body.style.color = "#e6e6e6";
-      doc.body.innerHTML = `
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", Arial; }
-          #wbToolbar { display:flex; gap:8px; padding:10px; background:#171a21; border-bottom:1px solid #2a2f3b; position:sticky; top:0; z-index:2; }
-          button, select, input[type="color"], input[type="number"] {
-            padding:8px 10px; border-radius:8px; border:1px solid #2a2f3b; background:#262b36; color:#e6e6e6;
-          }
-          button:hover { background:#303647; }
-          #wbPageBar { padding:8px 10px; background:#0f1115; border-bottom:1px solid #2a2f3b; }
-          #wbCanvasWrap { position:relative; height: calc(100vh - 120px); background:#0b0e13; }
-          canvas { background:#ffffff; border:1px solid #2a2f3b; border-radius:10px; position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); }
-          .help { color:#9aa3af; font-size:12px; }
-        </style>
-        <div id="wbToolbar">
-          <button id="toolPen">펜</button>
-          <button id="toolEraser">지우개</button>
-          <label class="help">글씨/펜 사이즈</label>
-          <input type="number" id="sizeInput" value="4" min="1" max="50" style="width:80px" />
-          <label class="help">색상</label>
-          <input type="color" id="colorInput" value="#000000" />
-          <button id="clearAll" class="danger">모두 지우기</button>
-          <button id="addPage" class="green">페이지 추가</button>
-          <button id="savePagePng" class="primary">현재 페이지 저장 (PNG)</button>
-          <button id="savePagePdf" class="primary">현재 페이지 저장 (PDF)</button>
-          <button id="saveAllPdf" class="primary">모든 페이지 저장 (PDF)</button>
-        </div>
-        <div id="wbPageBar"><span class="help">페이지 이동: </span><select id="pageSelect"></select></div>
-        <div id="wbCanvasWrap"><canvas id="wbCanvas" width="1000" height="700"></canvas></div>
-      `;
-      const { jsPDF } = whiteboardWin.window.jspdf || window.jspdf;
-      const canvas = doc.getElementById("wbCanvas");
-      const ctx = canvas.getContext("2d");
-      let tool = "pen";
-      let drawing = false;
-      let size = 4;
-      let color = "#000000";
-      let pages = [doc.createElement("canvas")];
-      pages[0].width = canvas.width;
-      pages[0].height = canvas.height;
-      pages[0].getContext("2d").fillStyle = "#ffffff";
-      pages[0].getContext("2d").fillRect(0,0,canvas.width,canvas.height);
-      let currentIndex = 0;
-
-      // Populate page select
-      const pageSelect = doc.getElementById("pageSelect");
-      function refreshPageSelect() {
-        pageSelect.innerHTML = "";
-        pages.forEach((_, i) => {
-          const opt = doc.createElement("option");
-          opt.value = i;
-          opt.textContent = `페이지 ${i+1}`;
-          pageSelect.appendChild(opt);
-        });
-        pageSelect.value = String(currentIndex);
-      }
-      refreshPageSelect();
-
-      // Render current page to visible canvas
-      function renderCurrent() {
-        const pctx = pages[currentIndex].getContext("2d");
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(pages[currentIndex], 0, 0);
-      }
-      renderCurrent();
-
-      // Tools
-      doc.getElementById("toolPen").addEventListener("click", () => tool = "pen");
-      doc.getElementById("toolEraser").addEventListener("click", () => tool = "eraser");
-      doc.getElementById("sizeInput").addEventListener("input", (e) => size = Number(e.target.value || 4));
-      doc.getElementById("colorInput").addEventListener("input", (e) => color = e.target.value);
-
-      // Drawing
-      function pos(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        return { x, y };
-      }
-      function drawPoint(x, y) {
-        const pctx = pages[currentIndex].getContext("2d");
-        if (tool === "pen") {
-          pctx.fillStyle = color;
-          pctx.strokeStyle = color;
-          pctx.lineWidth = size;
-          pctx.lineCap = "round";
-          pctx.lineJoin = "round";
-          pctx.beginPath();
-          pctx.arc(x, y, size/2, 0, Math.PI*2);
-          pctx.fill();
-        } else {
-          pctx.clearRect(x - size, y - size, size*2, size*2);
-        }
-      }
-      let last = null;
-      function drawLine(x1, y1, x2, y2) {
-        const pctx = pages[currentIndex].getContext("2d");
-        if (tool === "pen") {
-          pctx.strokeStyle = color;
-          pctx.lineWidth = size;
-          pctx.lineCap = "round";
-          pctx.lineJoin = "round";
-          pctx.beginPath();
-          pctx.moveTo(x1, y1);
-          pctx.lineTo(x2, y2);
-          pctx.stroke();
-        } else {
-          // Eraser along line: sample points
-          const dx = x2 - x1, dy = y2 - y1;
-          const steps = Math.max(Math.abs(dx), Math.abs(dy));
-          for (let i=0;i<=steps;i++) {
-            const x = x1 + dx * (i/steps);
-            const y = y1 + dy * (i/steps);
-            const pctx2 = pages[currentIndex].getContext("2d");
-            pctx2.clearRect(x - size, y - size, size*2, size*2);
-          }
-        }
-      }
-      function handleStart(e) {
-        e.preventDefault();
-        drawing = true;
-        const { x, y } = pos(e);
-        last = { x, y };
-        drawPoint(x, y);
-        renderCurrent();
-      }
-      function handleMove(e) {
-        if (!drawing) return;
-        const { x, y } = pos(e);
-        drawLine(last.x, last.y, x, y);
-        last = { x, y };
-        renderCurrent();
-      }
-      function handleEnd() {
-        drawing = false;
-        last = null;
-      }
-      canvas.addEventListener("mousedown", handleStart);
-      canvas.addEventListener("mousemove", handleMove);
-      whiteboardWin.addEventListener("mouseup", handleEnd);
-      canvas.addEventListener("touchstart", handleStart, { passive: false });
-      canvas.addEventListener("touchmove", handleMove, { passive: false });
-      canvas.addEventListener("touchend", handleEnd, { passive: false });
-
-      // Clear all
-      doc.getElementById("clearAll").addEventListener("click", () => {
-        const pctx = pages[currentIndex].getContext("2d");
-        pctx.fillStyle = "#ffffff";
-        pctx.fillRect(0,0,canvas.width,canvas.height);
-        renderCurrent();
-      });
-
-      // Add page
-      doc.getElementById("addPage").addEventListener("click", () => {
-        const c = doc.createElement("canvas");
-        c.width = canvas.width; c.height = canvas.height;
-        c.getContext("2d").fillStyle = "#ffffff";
-        c.getContext("2d").fillRect(0,0,c.width,c.height);
-        pages.push(c);
-        currentIndex = pages.length - 1;
-        refreshPageSelect();
-        renderCurrent();
-      });
-
-      // Switch page
-      pageSelect.addEventListener("change", (e) => {
-        currentIndex = Number(e.target.value);
-        renderCurrent();
-      });
-
-      // Save current page as PNG
-      doc.getElementById("savePagePng").addEventListener("click", () => {
-        const url = pages[currentIndex].toDataURL("image/png");
-        const a = doc.createElement("a");
-        a.href = url;
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        a.download = `whiteboard-page-${currentIndex+1}-${ts}.png`;
-        a.click();
-      });
-
-      // Save current page as PDF
-      doc.getElementById("savePagePdf").addEventListener("click", () => {
-        const { jsPDF } = whiteboardWin.window.jspdf || window.jspdf;
-        const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [canvas.width, canvas.height] });
-        pdf.addImage(pages[currentIndex].toDataURL("image/png"), "PNG", 0, 0, canvas.width, canvas.height);
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        pdf.save(`whiteboard-page-${currentIndex+1}-${ts}.pdf`);
-      });
-
-      // Save all pages as single PDF
-      doc.getElementById("saveAllPdf").addEventListener("click", () => {
-        const { jsPDF } = whiteboardWin.window.jspdf || window.jspdf;
-        const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [canvas.width, canvas.height] });
-        pages.forEach((p, idx) => {
-          if (idx > 0) pdf.addPage([canvas.width, canvas.height], "landscape");
-          pdf.addImage(p.toDataURL("image/png"), "PNG", 0, 0, canvas.width, canvas.height);
-        });
-        const ts = new Date().toISOString().replace(/[:.]/g, "-");
-        pdf.save(`whiteboard-all-${ts}.pdf`);
-      });
-    });
-
-    // Restore layout on fullscreen change (keep chat floating visible if expand mode)
-    document.addEventListener("fullscreenchange", () => {
-      // We let browser fullscreen take over; chat cannot be forced visible in true fullscreen by spec.
-      // Use "화면 키우기 (PiP)" for near-fullscreen where chat remains visible.
-    });
-
-    // Auto-role from URL if provided
-    window.addEventListener("DOMContentLoaded", () => {
-      const q = getQuery();
-      if (q.room && q.token) {
-        // Student quick entry path
-        role = "student";
-        chooseStudent.click();
-        document.getElementById("roomId").value = q.room;
-        // Prompt for name
-        studentFields.classList.remove("hidden");
-      }
-    });
-  </script>
+document.getElementById("toggleMic").onclick=()=>{
+  localStream.getAudioTracks().forEach(t=>t.enabled=!t.enabled);
+  const on=localStream.getAudioTracks()[0].enabled;
+  document.getElementById("toggleMic").className=on?"state-on":"state-off";
+};
+document.getElementById("toggleCam").onclick=()=>{
+  localStream.getVideoTracks().forEach(t=>t.enabled=!t.enabled);
+  const on=localStream.getVideoTracks()[0].enabled;
+  document.getElementById("toggleCam").className=on?"state-on":"state-off";
+};
+</script>
 </body>
 </html>
