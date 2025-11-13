@@ -1,0 +1,35 @@
+body { font-family: Arial, sans-serif; margin:0; background:#f5f6fa;}
+.container { max-width: 900px; margin: 30px auto; padding:24px; background:#fff; border-radius:12px; box-shadow:0 2px 25px rgba(0,0,0,0.09);}
+h2 { margin:0 0 20px 0;}
+.flex-row { display: flex; }
+.hidden {display:none;}
+label { display:block; margin-top:10px;}
+input[type="text"],input[type="password"]{ width: 100%; padding: 7px 9px; font-size:16px; margin-top:5px;}
+button { margin-top:8px; padding:8px 14px; border-radius:6px; border:none; font-size:16px; cursor:pointer; background:#1562c3; color:#fff;}
+button.sm { font-size:13px; padding:4px 7px; margin-top:0;}
+button.on { background: #1562c3; color:#fff;}
+button.off { background: #c00; color:#fff;}
+#video-chat-wrap { display:flex; align-items: flex-start; gap:18px;}
+#video-box { display:flex; flex-direction:column; align-items:center; }
+.video-wrap, .video-other { position:relative;}
+.video-wrap .controls, .video-other .controls { position: absolute; top:4px; left:4px; z-index:10;}
+.video-wrap video, .video-other video {width:388px; height:294px; background:#14172b; border-radius:7px;}
+.video-other { margin-top:10px;}
+#chat-panel { min-width:260px; max-width:320px; flex:1; display:flex; flex-direction:column; height:585px; background: #f3f6fd; border-radius:8px; box-shadow: -2px 0 12px rgba(0,0,0,.07);}
+#chat-box { flex:1; overflow:auto; border:1px solid #dde5f7; padding:10px; background:#f5fafd; margin-bottom:9px; border-radius:7px; color:#202343;}
+#chat-input, .chat-send, #file-input { font-size:16px;}
+#chat-input {width:64%; padding:7px;}
+.chat-send {width:17%; margin-left:4px;}
+#file-input {width:16%; margin-left:4px;}
+#connection-msg {background:#daf9e7; color:#165a23; margin:10px 0; padding:11px; border-radius:8px; text-align:center; font-weight:bold; display:none;}
+#whiteboard-btn { background:#4676d2; color:#fff;}
+#chat-panel.floating { position:fixed; top:10px; right:20px; height:95vh; width:335px; min-width:180px; box-shadow:-4px 0 22px rgba(0,0,0,0.16); z-index:1001; background:#fdfdfe;}
+#big-view { position: fixed; top:0; left:0; width: 100vw; height:100vh; background: #000; z-index: 3000; display:none; align-items:center; justify-content:center;}
+#big-main { position: relative; color:#fff;}
+#big-main video{ max-width:90vw; max-height:93vh; border-radius:12px;}
+#big-main button{ position: absolute; top:12px; right:22px; z-index:20; background:#234; color:#fff; border-radius:9px;}
+@media(max-width:900px){
+  #video-chat-wrap{flex-direction:column;}
+  .video-wrap video, .video-other video {width:96vw; height:36vw; min-height:150px; }
+  #chat-panel{ height:330px;}
+}

@@ -2,352 +2,91 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>1:1 PeerJS 화상채팅 (교사/학생)</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f4f4f4; }
-    .container { max-width: 780px; margin: 30px auto; padding:24px; background:#fff; border-radius:12px; box-shadow:0 2px 25px rgba(0,0,0,0.09);}
-    label { display:block; margin-top:10px; }
-    input[type="text"],input[type="password"] { width:100%; padding:7px 9px; font-size:16px; margin-top:6px;}
-    button { margin-top:14px; padding:8px 16px; font-size:16px; cursor:pointer; border-radius:5px; border:none; background:#1976d2; color:#fff;}
-    .button-sm {margin-top:0; margin-bottom:8px; padding:5px 10px; font-size:13px;}
-    #url-share {margin-top:10px; color:#1976d2;}
-    #video-chat-wrap { display:flex; align-items: flex-start; }
-    #video-box { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
-    #video-box video {width:256px; height:190px; background:#222; margin:5px 0; border-radius: 7px;}
-    #video-controls { margin-top:5px;}
-    #video-controls button { margin-right:7px; background:#8aa5e3;}
-    #chat-panel { margin-left:16px; flex:1; display:flex; flex-direction:column; height:400px; }
-    #chat-box { flex:1; overflow:auto; border:1px solid #ececec; padding:10px; background:#fafbfd; margin-bottom:7px; border-radius: 7px; }
-    #chat-input, #chat-send, #file-input { font-size:16px;}
-    #chat-input {width:60%; padding:7px;}
-    #chat-send {width:17%; margin-left:5px;}
-    #file-input {width:18%; margin-left:5px;}
-    #connection-msg {background:#d3ffe3; color:#165a23; margin:12px 0; padding:12px; border-radius:8px; text-align:center; font-weight:bold; display:none;}
-    #switch-cam-btn { font-size:15px;}
-    @media (max-width: 750px) {
-      #video-chat-wrap { flex-direction:column; }
-      #chat-panel { margin:0; margin-top:16px; height:220px;}
-      #video-box { flex-direction:row; }
-      #video-box video { width:46vw; max-width:180px; height:21vw; min-height:110px;}
-      #video-controls { margin-bottom: 12px;}
-    }
-  </style>
+  <title>올인원 1:1 화상채팅</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container" id="main-section">
+<div class="container" id="main-section">
     <h2>1:1 실시간 화상채팅</h2>
     <button onclick="showTeacher()">교사로 시작</button>
     <button onclick="showStudent()">학생으로 입장</button>
-  </div>
-  <div class="container" id="teacher-auth" style="display:none;">
-    <h3>교사 인증</h3>
-    <label>비밀번호 입력: <input type="password" id="teacher-pw"></label>
-    <button onclick="teacherLogin()">확인</button>
-    <p id="teacher-auth-msg" style="color:red;"></p>
-  </div>
-  <div class="container" id="teacher-create" style="display:none;">
-    <h3>강의방 생성</h3>
-    <label>강의방 ID: <input type="text" id="room-id"></label>
-    <label>접속 비밀번호:<input type="text" id="room-pw"></label>
-    <button onclick="createRoom()">강의방 생성</button>
-    <div id="url-share"></div>
-  </div>
-  <div class="container" id="student-join" style="display:none;">
-    <h3>강의방 입장</h3>
-    <label>강의방 ID: <input type="text" id="join-room-id"></label>
-    <label>접속 비밀번호: <input type="text" id="join-room-pw"></label>
-    <label>이름: <input type="text" id="join-name"></label>
-    <button onclick="joinRoomByInfo()">입장</button>
-  </div>
-  <div class="container" id="student-url-join" style="display:none;">
-    <h3>이름 입력</h3>
-    <label>이름: <input type="text" id="url-join-name"></label>
-    <button onclick="joinRoomByUrl()">입장</button>
-  </div>
-  <div class="container" id="video-section" style="display:none;">
-    <div id="connection-msg">서로 연결되었습니다!</div>
-    <h3 id="role-title"></h3>
-    <div id="video-chat-wrap">
-      <div id="video-box">
+</div>
+<div class="container hidden" id="teacher-auth">
+  <h3>교사 인증</h3>
+  <label>비밀번호 입력: <input type="password" id="teacher-pw"></label>
+  <button onclick="teacherLogin()">확인</button>
+  <p id="teacher-auth-msg" style="color:red;"></p>
+</div>
+<div class="container hidden" id="teacher-create">
+  <h3>강의방 생성</h3>
+  <label>강의방 ID: <input type="text" id="room-id"></label>
+  <label>접속 비밀번호:<input type="text" id="room-pw"></label>
+  <button onclick="createRoom()">강의방 생성</button>
+  <div id="url-share"></div>
+</div>
+<div class="container hidden" id="student-join">
+  <h3>강의방 입장</h3>
+  <label>강의방 ID: <input type="text" id="join-room-id"></label>
+  <label>접속 비밀번호: <input type="text" id="join-room-pw"></label>
+  <label>이름: <input type="text" id="join-name"></label>
+  <button onclick="joinRoomByInfo()">입장</button>
+</div>
+<div class="container hidden" id="student-url-join">
+  <h3>이름 입력</h3>
+  <label>이름: <input type="text" id="url-join-name"></label>
+  <button onclick="joinRoomByUrl()">입장</button>
+</div>
+<div class="container hidden" id="video-section">
+  <div id="connection-msg">서로 연결되었습니다!</div>
+  <h3 id="role-title"></h3>
+  <div id="video-chat-wrap">
+    <div id="video-box">
+      <div class="video-wrap">
+        <div class="controls">
+          <button id="fullscreen-my" class="sm" title="전체화면" onclick="fullscreenVideo('my-video')">⛶</button>
+          <button id="expand-my" class="sm" title="화면키우기" onclick="maximizeVideo('my-video','peer-video')">📺</button>
+          <button id="capture-my" class="sm" title="캡쳐" onclick="captureVideo('my-video')">📸</button>
+          <button id="rec-btn" class="sm" onclick="toggleRecord()">● 녹화</button>
+        </div>
         <video id="my-video" autoplay playsinline muted></video>
-        <video id="peer-video" autoplay playsinline></video>
-        <div id="video-controls">
-          <button class="button-sm" id="switch-cam-btn" onclick="switchCamera()">카메라 전환</button>
-          <button class="button-sm" id="mic-toggle-btn" onclick="toggleMic()">마이크 끄기</button>
-          <button class="button-sm" id="cam-toggle-btn" onclick="toggleCam()">카메라 끄기</button>
-          <button class="button-sm" id="screen-share-btn" onclick="shareScreen()">화면공유</button>
+        <div style="margin:5px 0;">
+          <button class="sm on" id="switch-cam-btn" onclick="switchCamera()">카메라 전환</button>
+          <button class="sm on" id="mic-toggle-btn" onclick="toggleMic()">마이크 끄기</button>
+          <button class="sm on" id="cam-toggle-btn" onclick="toggleCam()">카메라 끄기</button>
+          <button class="sm on" id="screen-share-btn" onclick="shareScreen()">화면공유</button>
         </div>
       </div>
-      <div id="chat-panel">
-        <div id="chat-box"></div>
-        <div>
-          <input type="text" id="chat-input" placeholder="채팅 입력">
-          <button id="chat-send" onclick="sendMsg()">전송</button>
-          <input type="file" id="file-input" title="파일첨부">
+      <div class="video-other">
+        <div class="controls">
+          <button id="fullscreen-peer" class="sm" title="전체화면" onclick="fullscreenVideo('peer-video')">⛶</button>
+          <button id="expand-peer" class="sm" title="화면키우기" onclick="maximizeVideo('peer-video','my-video')">📺</button>
+          <button id="capture-peer" class="sm" title="캡쳐" onclick="captureVideo('peer-video')">📸</button>
         </div>
+        <video id="peer-video" autoplay playsinline></video>
+      </div>
+      <button id="whiteboard-btn" onclick="openWhiteboard()">✏️ 판서도구 오픈</button>
+    </div>
+    <div id="chat-panel">
+      <div id="chat-box"></div>
+      <div>
+        <input type="text" id="chat-input" placeholder="채팅 입력" autocomplete="off">
+        <button class="chat-send" onclick="sendMsg()">전송</button>
+        <input type="file" id="file-input" title="파일첨부" />
       </div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script>
-    let myPeer, conn, call, myVideoStream, myRole, myName, roomId, roomPw, peerIdFromUrl;
-    let currentFacingMode = 'user';
-    let micEnabled = true, camEnabled = true, screenSharing = false;
-    let userStreamReady = false;
-
-    // 진입점
-    function showTeacher() {
-      document.getElementById('main-section').style.display='none';
-      document.getElementById('teacher-auth').style.display='';
-    }
-    function showStudent() {
-      document.getElementById('main-section').style.display='none';
-      document.getElementById('student-join').style.display='';
-    }
-    function teacherLogin() {
-      let pw = document.getElementById('teacher-pw').value;
-      if(pw === 'a123456!') {
-        document.getElementById('teacher-auth').style.display='none';
-        document.getElementById('teacher-create').style.display='';
-      } else {
-        document.getElementById('teacher-auth-msg').innerText = "비밀번호가 틀립니다!";
-      }
-    }
-
-    // 선행: 내 스트림
-    async function prepareMediaAndStart(role, gotoFunc) {
-      try {
-        const constraints = {
-          video: { facingMode: currentFacingMode, width: {ideal:640}, height: {ideal:480} },
-          audio: true
-        };
-        myVideoStream = await navigator.mediaDevices.getUserMedia(constraints);
-        document.getElementById('my-video').srcObject = myVideoStream;
-        userStreamReady = true;
-        gotoFunc(); // 나머지 로직 실행(방 생성 or 입장 연결)
-      } catch (e) {
-        alert('카메라/마이크 사용에 실패했습니다.\n[권한 차단된 경우 주소창 왼쪽의 자물쇠 아이콘 클릭→권한 변경 후 새로고침]\n[' + e.name + '] ' + e.message);
-        location.reload();
-      }
-    }
-
-    // 교사 방 생성
-    function createRoom() {
-      roomId = document.getElementById('room-id').value.trim();
-      roomPw = document.getElementById('room-pw').value.trim();
-      if(!roomId || !roomPw) {
-        alert('ID와 비번 입력!');
-        return;
-      }
-      myRole = 'teacher';
-      myName = '교사';
-      document.getElementById('teacher-create').style.display='none';
-      document.getElementById('role-title').innerText = "교사용 강의방 (ID: "+roomId+")";
-      document.getElementById('video-section').style.display='';
-      prepareMediaAndStart(myRole, function(){
-        startPeer(roomId);
-        const url = location.origin + location.pathname + "?room=" + encodeURIComponent(roomId);
-        document.getElementById('url-share').innerHTML = "학생에게 <b>아래 주소</b> 또는<br><b>ID: "+roomId+", 비번: "+roomPw+"</b>를 전달하세요.<br><input value='"+url+"' style='width:95%' readonly>";
-        document.getElementById('url-share').style.display='';
-      });
-    }
-    function joinRoomByInfo() {
-      roomId = document.getElementById('join-room-id').value.trim();
-      roomPw = document.getElementById('join-room-pw').value.trim();
-      myName = document.getElementById('join-name').value.trim();
-      if(!roomId || !roomPw || !myName) { alert('정보 입력!'); return;}
-      myRole = 'student';
-      document.getElementById('student-join').style.display='none';
-      document.getElementById('role-title').innerText = myName+"(학생)";
-      document.getElementById('video-section').style.display='';
-      prepareMediaAndStart(myRole, function(){
-        startPeer();
-      });
-    }
-    function joinRoomByUrl() {
-      myName = document.getElementById('url-join-name').value.trim();
-      if(!myName) { alert('이름 입력!'); return;}
-      myRole = 'student';
-      roomId = peerIdFromUrl;
-      roomPw = null;
-      document.getElementById('student-url-join').style.display='none';
-      document.getElementById('role-title').innerText = myName+"(학생)";
-      document.getElementById('video-section').style.display='';
-      prepareMediaAndStart(myRole, function(){
-        startPeer();
-      });
-    }
-    window.onload = function() {
-      const params = new URLSearchParams(location.search);
-      if(params.has('room')) {
-        document.getElementById('main-section').style.display='none';
-        document.getElementById('student-url-join').style.display='';
-        peerIdFromUrl = params.get('room');
-      }
-    };
-
-    // 카메라 전환 (단, 모바일에서만 제대로 동작)
-    async function switchCamera() {
-      currentFacingMode = currentFacingMode==='user' ? 'environment' : 'user';
-      try {
-        let newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: currentFacingMode, width: {ideal:640}, height: {ideal:480} }, 
-          audio: true
-        });
-        replaceLocalStream(newStream);
-      } catch(e){
-        alert('카메라 전환 실패: ' + e.message);
-      }
-    }
-
-    // 마이크/카메라 On/Off
-    function toggleMic() {
-      micEnabled = !micEnabled;
-      if(myVideoStream) myVideoStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
-      document.getElementById('mic-toggle-btn').innerText = micEnabled?"마이크 끄기":"마이크 켜기";
-    }
-    function toggleCam() {
-      camEnabled = !camEnabled;
-      if(myVideoStream) myVideoStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
-      document.getElementById('cam-toggle-btn').innerText = camEnabled?"카메라 끄기":"카메라 켜기";
-    }
-    // 화면공유
-    async function shareScreen() {
-      if(screenSharing) {
-        // 공유 중이면, 원래 카메라로 복귀
-        switchCamera();
-        screenSharing = false;
-        document.getElementById('screen-share-btn').innerText = "화면공유";
-        return;
-      }
-      let screenStream;
-      try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
-      } catch(e) {
-        alert('화면 공유를 시작할 수 없습니다: '+e.message);
-        return;
-      }
-      screenSharing = true;
-      replaceLocalStream(screenStream, true);
-      document.getElementById('screen-share-btn').innerText = "화면공유중지";
-      screenStream.getVideoTracks()[0].onended = function() {
-        shareScreen(); // 재전환
-      }
-    }
-    // stream 교체
-    function replaceLocalStream(newStream, isScreen=false) {
-      if(myVideoStream) myVideoStream.getTracks().forEach(t=>t.stop());
-      myVideoStream = newStream;
-      document.getElementById('my-video').srcObject = myVideoStream;
-      if(call && call.peerConnection) {
-        const pc = call.peerConnection;
-        const senders = pc.getSenders();
-        // video
-        let vSender = senders.find(sender => sender.track && sender.track.kind==='video');
-        if(vSender && myVideoStream.getVideoTracks().length>0) vSender.replaceTrack(myVideoStream.getVideoTracks()[0]);
-        // audio
-        let aSender = senders.find(sender => sender.track && sender.track.kind==='audio');
-        if(aSender && myVideoStream.getAudioTracks().length>0) aSender.replaceTrack(myVideoStream.getAudioTracks()[0]);
-      }
-      // 화면공유 종료 후, 카메라 모드 전환
-      if(isScreen) {
-        newStream.getVideoTracks()[0].onended = function() { shareScreen(); }
-      }
-    }
-
-    // PeerJS 연결
-    function startPeer(id=null) {
-      myPeer = new Peer(id||undefined, {debug:2});
-      myPeer.on('open', function(peerId) {
-        if(myRole === 'student') {
-          conn = myPeer.connect(roomId, {metadata: {pw: roomPw, name: myName}});
-          conn.on('open', () => {
-            setupConn(conn);
-            chatMsg('<시스템> 교사 연결!');
-          });
-          call = myPeer.call(roomId, myVideoStream, {metadata:{pw: roomPw, name: myName}});
-          call.on('stream', remoteStream=>{
-            document.getElementById('peer-video').srcObject = remoteStream;
-            showConnectedMsg();
-          });
-        }
-      });
-      if(myRole === 'teacher') {
-        myPeer.on('connection', (newConn)=>{
-          if(newConn.metadata?.pw && newConn.metadata.pw!==roomPw) {
-            newConn.on('open', ()=>{ newConn.send({type:'deny', msg:'비밀번호가 다릅니다!'}); newConn.close(); });
-            return;
-          }
-          conn = newConn;
-          conn.on('open', ()=> {
-            setupConn(conn);
-            chatMsg('<시스템> 학생 접속!');
-            showConnectedMsg();
-          });
-        });
-        myPeer.on('call', (incomingCall)=>{
-          if(incomingCall.metadata?.pw && incomingCall.metadata.pw!==roomPw) {
-            incomingCall.close();
-            return;
-          }
-          incomingCall.answer(myVideoStream);
-          incomingCall.on('stream', (remoteStream)=>{
-            document.getElementById('peer-video').srcObject = remoteStream;
-            showConnectedMsg();
-          });
-          call = incomingCall;
-        });
-      }
-    }
-
-    function showConnectedMsg() {
-      let div = document.getElementById('connection-msg');
-      div.style.display='';
-      div.innerText = '서로 연결되었습니다!';
-      setTimeout(()=>{div.style.display='none'},3000);
-    }
-
-    function setupConn(c) {
-      c.on('data', msg=>{
-        if(msg.type==='deny'){ alert(msg.msg); location.reload(); }
-        else if(msg.type==='chat') chatMsg(msg.name+": "+msg.msg);
-        else if(msg.type==='file') receiveFile(msg);
-      });
-      c.on('close', ()=> chatMsg('<시스템> 상대방 연결 종료'));
-    }
-    function sendMsg() {
-      const input = document.getElementById('chat-input');
-      const text = input.value.trim();
-      if(text.length==0) return;
-      chatMsg("나: "+text, true);
-      if(conn&&conn.open) conn.send({type:'chat', name:myName, msg:text});
-      input.value='';
-    }
-    document.addEventListener('keydown', function(e){
-      if(document.getElementById('chat-input') && document.activeElement===document.getElementById('chat-input')) {
-        if(e.key==='Enter') sendMsg();
-      }
-    });
-    function chatMsg(msg, my=false) {
-      const div = document.getElementById('chat-box');
-      div.innerHTML += (my?'<b>':'')+msg+(my?'</b>':'')+"<br>";
-      div.scrollTop = div.scrollHeight;
-    }
-    document.getElementById('file-input').addEventListener('change', function(e){
-      const file = e.target.files[0];
-      if(!file || !conn || !conn.open) return;
-      if(file.size > 30*1024*1024) { alert("최대 30MB 파일만 지원."); return;}
-      const fr = new FileReader();
-      fr.onload = function(ev){
-        conn.send({type:'file', name: myName, fileName: file.name, data:ev.target.result});
-        chatMsg(`나: <a download="\\${file.name}" href="\\${ev.target.result}" target="_blank">[\\${file.name}] 파일 보내기</a>`, true);
-      };
-      fr.readAsDataURL(file);
-      e.target.value='';
-    });
-    function receiveFile(msg) {
-      chatMsg(`\\${msg.name}: <a download="\\${msg.fileName}" href="\\${msg.data}" target="_blank">[\\${msg.fileName}] 파일 받기</a>`);
-    }
-  </script>
+</div>
+<!-- PIP/Big view UI -->
+<div id="big-view" onclick="closeBigView(event)">
+  <div id="big-main">
+    <button onclick="closeBigView(event)">닫기</button>
+    <!-- 동적으로 비디오 넣음 -->
+  </div>
+</div>
+<!-- PeerJS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<!-- jsPDF for 판서 PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
