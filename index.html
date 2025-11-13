@@ -160,7 +160,7 @@
         #video-container {
             flex: 1;
             display: flex;
-            flex-direction: column;
+            flex-direction: row; /* column에서 row로 변경 */
             background-color: #34495e;
             padding: 1rem;
             gap: 1rem;
@@ -173,7 +173,7 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: calc(100% - 350px); /* 채팅창 너비 제외 */
+            width: 100%; /* calc() 제거, 채팅창은 fixed로 뜸 */
             height: 100vh;
             z-index: 1000;
             padding: 1rem;
@@ -250,6 +250,18 @@
             position: relative; /* 자식 버튼 위치용 */
         }
         
+        /* 확대 모드 시 채팅창 스타일 */
+        #chat-container.in-theater-mode {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            height: calc(100vh - 2rem - 80px); /* 위아래 여백, 컨트롤바 높이 제외 */
+            z-index: 1001;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
         #chat-container.enlarged {
             width: 600px;
         }
@@ -272,6 +284,11 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        
+        /* 드래그 가능한 헤더 */
+        #chat-header.draggable-header {
+            cursor: move;
         }
         
         #chat-header-buttons button {
@@ -599,6 +616,12 @@
         const mainContent = document.getElementById('main-content');
         const chatContainer = document.getElementById('chat-container');
         const showChatBtn = document.getElementById('show-chat-btn');
+        const chatHeader = document.getElementById('chat-header');
+        
+        // 채팅 드래그 관련 변수
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
 
         // --- 1. 로그인 및 초기화 로직 ---
 
@@ -987,10 +1010,12 @@
             messagesLog.scrollTop = messagesLog.scrollHeight;
         }
 
-        // 파일 전송
-        document.getElementById('file-input').onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file || !dataConnection) return;
+        // 파일 전송 (로직 분리)
+        function sendFile(file) {
+            if (!file || !dataConnection) {
+                if (!dataConnection) alert("채팅이 연결되지 않았습니다.");
+                return;
+            }
 
             // 100MB 제한 (약 100 * 1024 * 1024)
             if (file.size > 104857600) {
@@ -1009,7 +1034,7 @@
             });
 
             // 2. 파일 청크 전송
-            const reader = new FileReader();
+            const reader = new new FileReader();
             reader.onload = (event) => {
                 const buffer = event.target.result;
                 let offset = 0;
@@ -1017,12 +1042,9 @@
                 const sendNextChunk = () => {
                     if (offset >= buffer.byteLength) {
                         // console.log("파일 전송 완료:", file.name);
-                        // dataConnection.send({ type: 'file_end' }); // 청크 크기로 대체
                         return;
                     }
                     
-                    // 데이터 채널 버퍼 상태 확인 (Simple)
-                    // (고급: 버퍼가 꽉 찼으면 잠시 대기)
                     if (dataConnection.dataChannel.bufferedAmount > dataConnection.dataChannel.bufferedAmountLowThreshold) {
                         setTimeout(sendNextChunk, 100); // 잠시 대기
                         return;
@@ -1032,14 +1054,38 @@
                     dataConnection.send({ type: 'file_chunk', chunk: chunk });
                     offset += chunk.byteLength;
                     
-                    // 재귀적으로 다음 청크 전송 (이벤트 루프에 부담 덜 줌)
                     setTimeout(sendNextChunk, 0); 
                 };
                 
                 sendNextChunk();
             };
             reader.readAsArrayBuffer(file);
+        }
+        
+        // 파일 입력(input) 변경 시
+        document.getElementById('file-input').onchange = (e) => {
+            const file = e.target.files[0];
+            sendFile(file);
+            e.target.value = null; // 동일 파일 재선택 가능하도록
         };
+        
+        // 판서 도구에서 호출할 캡처 전송 함수
+        function sendWhiteboardCapture(dataUrl) {
+            if (!dataConnection) {
+                alert("채팅에 연결되지 않았습니다.");
+                return;
+            }
+            
+            // DataURL을 Blob -> File 객체로 변환
+            fetch(dataUrl)
+                .then(res => res.blob())
+                .then(blob => {
+                    const filename = `whiteboard_capture_${new Date().toISOString().split('T')[0]}.png`;
+                    const file = new File([blob], filename, { type: 'image/png' });
+                    // 분리된 sendFile 함수 호출
+                    sendFile(file);
+                });
+        }
 
 
         // --- 6. 하단 컨트롤 버튼 ---
@@ -1132,11 +1178,17 @@
 
         // 화면 확대 (Theater Mode) / PIP
         document.getElementById('enlarge-btn').onclick = async () => {
-            const videoContainer = document.getElementById('video-container');
+            const btn = document.getElementById('enlarge-btn');
             videoContainer.classList.toggle('theater-mode');
+            chatContainer.classList.toggle('in-theater-mode');
             
             if (videoContainer.classList.contains('theater-mode')) {
-                // 확대 모드: 원격 비디오를 PIP로
+                // 확대 모드
+                btn.innerHTML = '↙️'; // 축소 아이콘
+                chatHeader.classList.add('draggable-header');
+                makeChatDraggable(true);
+                
+                // 원격 비디오를 PIP로
                 if (remoteVideo.srcObject && document.pictureInPictureEnabled) {
                     try {
                         await remoteVideo.requestPictureInPicture();
@@ -1145,7 +1197,16 @@
                     }
                 }
             } else {
-                // 축소 모드: PIP 종료
+                // 축소 모드
+                btn.innerHTML = '🔳'; // 확대 아이콘
+                chatHeader.classList.remove('draggable-header');
+                makeChatDraggable(false);
+                
+                // 드래그로 변경된 위치 초기화
+                chatContainer.style.top = '';
+                chatContainer.style.left = '';
+                
+                // PIP 종료
                 if (document.pictureInPictureElement) {
                     await document.exitPictureInPicture();
                 }
@@ -1283,7 +1344,40 @@
         }
         
         
-        // --- 8. 판서 도구 (새 창 HTML/CSS/JS) ---
+        // --- 8. 채팅창 드래그 로직 ---
+        
+        function makeChatDraggable(isDraggable) {
+            if (isDraggable) {
+                chatHeader.addEventListener('mousedown', startDrag);
+            } else {
+                chatHeader.removeEventListener('mousedown', startDrag);
+            }
+        }
+
+        function startDrag(e) {
+            if (!chatContainer.classList.contains('in-theater-mode')) return;
+            e.preventDefault();
+            // 뷰포트 기준 좌표로 계산
+            dragOffsetX = e.clientX - chatContainer.getBoundingClientRect().left;
+            dragOffsetY = e.clientY - chatContainer.getBoundingClientRect().top;
+            document.addEventListener('mousemove', dragChat);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function dragChat(e) {
+            e.preventDefault();
+            // 뷰포트 기준 좌표로 설정
+            chatContainer.style.top = (e.clientY - dragOffsetY) + 'px';
+            chatContainer.style.left = (e.clientX - dragOffsetX) + 'px';
+        }
+
+        function stopDrag() {
+            document.removeEventListener('mousemove', dragChat);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+        
+        
+        // --- 9. 판서 도구 (새 창 HTML/CSS/JS) ---
         
         function getWhiteboardHTML() {
             // 새 창에 삽입될 HTML, CSS, JS (문자열)
@@ -1331,6 +1425,7 @@
         <div class="tool-group">
             <label>도구</label>
             <button id="pen-btn" style="background: #2ecc71;">펜</button>
+            <button id="highlighter-btn">형광펜</button>
             <button id="eraser-btn">지우개</button>
         </div>
         <div class="tool-group">
@@ -1357,6 +1452,7 @@
             <button id="save-png-btn">현재 페이지 (PNG)</button>
             <button id="save-pdf-btn">현재 페이지 (PDF)</button>
             <button id="save-all-pdf-btn">모든 페이지 (PDF)</button>
+            <button id="send-chat-btn" style="background: #f39c12; margin-top: 5px;">채팅에 전송</button>
         </div>
     </div>
     <div id="canvas-container">
@@ -1373,6 +1469,7 @@
         
         let isDrawing = false;
         let isEraser = false;
+        let isHighlighter = false;
         let currentColor = '#000000';
         let currentSize = 5;
         
@@ -1394,7 +1491,17 @@
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
             
-            ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+            if (isEraser) {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.globalAlpha = 1.0;
+            } else if (isHighlighter) {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 0.3; // 형광펜 투명도
+            } else { // 펜
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.globalAlpha = 1.0;
+            }
+            
             ctx.strokeStyle = currentColor;
             ctx.lineWidth = currentSize;
             ctx.lineCap = 'round';
@@ -1420,12 +1527,54 @@
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseout', stopDrawing);
         
+        // --- 모바일 터치 이벤트 추가 ---
+        function getTouchPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.target == canvas) {
+                e.preventDefault();
+                const pos = getTouchPos(e);
+                startDrawing({ offsetX: pos.x, offsetY: pos.y });
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.target == canvas) {
+                e.preventDefault();
+                const pos = getTouchPos(e);
+                draw({ offsetX: pos.x, offsetY: pos.y });
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchend', (e) => {
+            if (e.target == canvas) {
+                e.preventDefault();
+                stopDrawing();
+            }
+        }, { passive: false });
+        
         // --- 툴바 로직 ---
-        document.getElementById('pen-btn').onclick = () => { isEraser = false; };
-        document.getElementById('eraser-btn').onclick = () => { isEraser = true; };
+        document.getElementById('pen-btn').onclick = () => { 
+            isEraser = false; 
+            isHighlighter = false; 
+        };
+        document.getElementById('highlighter-btn').onclick = () => { 
+            isEraser = false; 
+            isHighlighter = true; 
+        };
+        document.getElementById('eraser-btn').onclick = () => { 
+            isEraser = true; 
+            isHighlighter = false; 
+        };
         
         const colorPicker = document.getElementById('color-picker');
-        colorPicker.onchange = (e) => { currentColor = e.target.value; };
+        colorPicker.oninput = (e) => { currentColor = e.target.value; }; // onchange -> oninput
         
         const sizeSlider = document.getElementById('size-slider');
         const sizeValue = document.getElementById('size-value');
@@ -1548,6 +1697,19 @@
             });
             
             doc.save('whiteboard_all_pages.pdf');
+        };
+        
+        // 채팅 전송
+        document.getElementById('send-chat-btn').onclick = () => {
+            savePage(currentPageIndex); // 현재 페이지 저장
+            const dataUrl = pages[currentPageIndex];
+            
+            if (window.opener && !window.opener.closed) {
+                // 메인 창의 sendWhiteboardCapture 함수 호출
+                window.opener.sendWhiteMboardCapture(dataUrl);
+            } else {
+                alert("메인 창을 찾을 수 없습니다. (팝업이 차단되었거나 창이 닫혔습니다.)");
+            }
         };
 
     <\/script>
