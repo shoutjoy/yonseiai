@@ -14,7 +14,7 @@
     #video-chat-wrap { display:flex; align-items: flex-start; }
     #video-box { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
     #video-box video {width:256px; height:190px; background:#222; margin:5px 0; border-radius: 7px;}
-    #video-controls { margin-top:5px; }
+    #video-controls { margin-top:5px;}
     #video-controls button { margin-right:7px; background:#8aa5e3;}
     #chat-panel { margin-left:16px; flex:1; display:flex; flex-direction:column; height:400px; }
     #chat-box { flex:1; overflow:auto; border:1px solid #ececec; padding:10px; background:#fafbfd; margin-bottom:7px; border-radius: 7px; }
@@ -93,7 +93,9 @@
     let myPeer, conn, call, myVideoStream, myRole, myName, roomId, roomPw, peerIdFromUrl;
     let currentFacingMode = 'user';
     let micEnabled = true, camEnabled = true, screenSharing = false;
+    let userStreamReady = false;
 
+    // 진입점
     function showTeacher() {
       document.getElementById('main-section').style.display='none';
       document.getElementById('teacher-auth').style.display='';
@@ -111,6 +113,25 @@
         document.getElementById('teacher-auth-msg').innerText = "비밀번호가 틀립니다!";
       }
     }
+
+    // 선행: 내 스트림
+    async function prepareMediaAndStart(role, gotoFunc) {
+      try {
+        const constraints = {
+          video: { facingMode: currentFacingMode, width: {ideal:640}, height: {ideal:480} },
+          audio: true
+        };
+        myVideoStream = await navigator.mediaDevices.getUserMedia(constraints);
+        document.getElementById('my-video').srcObject = myVideoStream;
+        userStreamReady = true;
+        gotoFunc(); // 나머지 로직 실행(방 생성 or 입장 연결)
+      } catch (e) {
+        alert('카메라/마이크 사용에 실패했습니다.\n[권한 차단된 경우 주소창 왼쪽의 자물쇠 아이콘 클릭→권한 변경 후 새로고침]\n[' + e.name + '] ' + e.message);
+        location.reload();
+      }
+    }
+
+    // 교사 방 생성
     function createRoom() {
       roomId = document.getElementById('room-id').value.trim();
       roomPw = document.getElementById('room-pw').value.trim();
@@ -123,10 +144,12 @@
       document.getElementById('teacher-create').style.display='none';
       document.getElementById('role-title').innerText = "교사용 강의방 (ID: "+roomId+")";
       document.getElementById('video-section').style.display='';
-      startPeer(roomId);
-      const url = location.origin + location.pathname + "?room=" + encodeURIComponent(roomId);
-      document.getElementById('url-share').innerHTML = "학생에게 <b>아래 주소</b> 또는<br><b>ID: "+roomId+", 비번: "+roomPw+"</b>를 전달하세요.<br><input value='"+url+"' style='width:95%' readonly>";
-      document.getElementById('url-share').style.display='';
+      prepareMediaAndStart(myRole, function(){
+        startPeer(roomId);
+        const url = location.origin + location.pathname + "?room=" + encodeURIComponent(roomId);
+        document.getElementById('url-share').innerHTML = "학생에게 <b>아래 주소</b> 또는<br><b>ID: "+roomId+", 비번: "+roomPw+"</b>를 전달하세요.<br><input value='"+url+"' style='width:95%' readonly>";
+        document.getElementById('url-share').style.display='';
+      });
     }
     function joinRoomByInfo() {
       roomId = document.getElementById('join-room-id').value.trim();
@@ -137,7 +160,9 @@
       document.getElementById('student-join').style.display='none';
       document.getElementById('role-title').innerText = myName+"(학생)";
       document.getElementById('video-section').style.display='';
-      startPeer();
+      prepareMediaAndStart(myRole, function(){
+        startPeer();
+      });
     }
     function joinRoomByUrl() {
       myName = document.getElementById('url-join-name').value.trim();
@@ -148,7 +173,9 @@
       document.getElementById('student-url-join').style.display='none';
       document.getElementById('role-title').innerText = myName+"(학생)";
       document.getElementById('video-section').style.display='';
-      startPeer();
+      prepareMediaAndStart(myRole, function(){
+        startPeer();
+      });
     }
     window.onload = function() {
       const params = new URLSearchParams(location.search);
@@ -159,40 +186,36 @@
       }
     };
 
-    async function getCameraStream(facingMode='user') {
-      if(myVideoStream) myVideoStream.getTracks().forEach(track => track.stop());
-      return await navigator.mediaDevices.getUserMedia({video: {facingMode}, audio:true});
-    }
-    // 카메라 전환
+    // 카메라 전환 (단, 모바일에서만 제대로 동작)
     async function switchCamera() {
       currentFacingMode = currentFacingMode==='user' ? 'environment' : 'user';
       try {
-        let newStream = await getCameraStream(currentFacingMode);
-        updateStream(newStream, true, true);
+        let newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: currentFacingMode, width: {ideal:640}, height: {ideal:480} }, 
+          audio: true
+        });
+        replaceLocalStream(newStream);
       } catch(e){
-        alert('카메라를 사용할 수 없습니다: ' + e.message);
+        alert('카메라 전환 실패: ' + e.message);
       }
     }
-    // 마이크 토글
+
+    // 마이크/카메라 On/Off
     function toggleMic() {
       micEnabled = !micEnabled;
-      if(myVideoStream) {
-        myVideoStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
-      }
+      if(myVideoStream) myVideoStream.getAudioTracks().forEach(t => t.enabled = micEnabled);
       document.getElementById('mic-toggle-btn').innerText = micEnabled?"마이크 끄기":"마이크 켜기";
     }
-    // 카메라 토글
     function toggleCam() {
       camEnabled = !camEnabled;
-      if(myVideoStream) {
-        myVideoStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
-      }
+      if(myVideoStream) myVideoStream.getVideoTracks().forEach(t => t.enabled = camEnabled);
       document.getElementById('cam-toggle-btn').innerText = camEnabled?"카메라 끄기":"카메라 켜기";
     }
     // 화면공유
     async function shareScreen() {
       if(screenSharing) {
-        await switchCamera(); // 전 카메라로 복귀
+        // 공유 중이면, 원래 카메라로 복귀
+        switchCamera();
         screenSharing = false;
         document.getElementById('screen-share-btn').innerText = "화면공유";
         return;
@@ -205,55 +228,47 @@
         return;
       }
       screenSharing = true;
-      updateStream(screenStream, true, false); // 영상, 오디오는 유지
+      replaceLocalStream(screenStream, true);
       document.getElementById('screen-share-btn').innerText = "화면공유중지";
       screenStream.getVideoTracks()[0].onended = function() {
-        shareScreen();
+        shareScreen(); // 재전환
       }
     }
     // stream 교체
-    function updateStream(newStream, changeVideo, changeAudio) {
+    function replaceLocalStream(newStream, isScreen=false) {
+      if(myVideoStream) myVideoStream.getTracks().forEach(t=>t.stop());
       myVideoStream = newStream;
       document.getElementById('my-video').srcObject = myVideoStream;
       if(call && call.peerConnection) {
         const pc = call.peerConnection;
         const senders = pc.getSenders();
-        if(changeVideo) {
-          let vSender = senders.find(sender => sender.track && sender.track.kind==='video');
-          if(vSender) vSender.replaceTrack(myVideoStream.getVideoTracks()[0]);
-        }
-        if(changeAudio) {
-          let aSender = senders.find(sender => sender.track && sender.track.kind==='audio');
-          if(aSender && myVideoStream.getAudioTracks().length>0)
-            aSender.replaceTrack(myVideoStream.getAudioTracks()[0]);
-        }
+        // video
+        let vSender = senders.find(sender => sender.track && sender.track.kind==='video');
+        if(vSender && myVideoStream.getVideoTracks().length>0) vSender.replaceTrack(myVideoStream.getVideoTracks()[0]);
+        // audio
+        let aSender = senders.find(sender => sender.track && sender.track.kind==='audio');
+        if(aSender && myVideoStream.getAudioTracks().length>0) aSender.replaceTrack(myVideoStream.getAudioTracks()[0]);
+      }
+      // 화면공유 종료 후, 카메라 모드 전환
+      if(isScreen) {
+        newStream.getVideoTracks()[0].onended = function() { shareScreen(); }
       }
     }
+
+    // PeerJS 연결
     function startPeer(id=null) {
       myPeer = new Peer(id||undefined, {debug:2});
       myPeer.on('open', function(peerId) {
-        if(myRole==='teacher') {
-          getCameraStream(currentFacingMode).then(stream=>{
-            myVideoStream = stream;
-            document.getElementById('my-video').srcObject = stream;
-            micEnabled = true; camEnabled = true;
-          });
-        }
         if(myRole === 'student') {
           conn = myPeer.connect(roomId, {metadata: {pw: roomPw, name: myName}});
           conn.on('open', () => {
             setupConn(conn);
             chatMsg('<시스템> 교사 연결!');
           });
-          navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacingMode}, audio:true}).then(stream=>{
-            myVideoStream = stream;
-            document.getElementById('my-video').srcObject = stream;
-            micEnabled = true; camEnabled = true;
-            call = myPeer.call(roomId, stream, {metadata:{pw: roomPw, name: myName}});
-            call.on('stream', remoteStream=>{
-              document.getElementById('peer-video').srcObject = remoteStream;
-              showConnectedMsg();
-            });
+          call = myPeer.call(roomId, myVideoStream, {metadata:{pw: roomPw, name: myName}});
+          call.on('stream', remoteStream=>{
+            document.getElementById('peer-video').srcObject = remoteStream;
+            showConnectedMsg();
           });
         }
       });
@@ -275,39 +290,23 @@
             incomingCall.close();
             return;
           }
-          function answerCall(){
-            incomingCall.answer(myVideoStream);
-            incomingCall.on('stream', (remoteStream)=>{
-              document.getElementById('peer-video').srcObject = remoteStream;
-              showConnectedMsg();
-            });
-            call = incomingCall;
-          }
-          if(!myVideoStream) {
-            getCameraStream(currentFacingMode).then(stream=>{
-              myVideoStream = stream;
-              document.getElementById('my-video').srcObject = stream;
-              answerCall();
-            });
-          } else {
-            answerCall();
-          }
-        });
-      }
-      if(myRole==='student') {
-        navigator.mediaDevices.getUserMedia({video:{facingMode:currentFacingMode},audio:true}).then(stream=>{
-          myVideoStream = stream;
-          document.getElementById('my-video').srcObject = stream;
-          micEnabled = true; camEnabled = true;
+          incomingCall.answer(myVideoStream);
+          incomingCall.on('stream', (remoteStream)=>{
+            document.getElementById('peer-video').srcObject = remoteStream;
+            showConnectedMsg();
+          });
+          call = incomingCall;
         });
       }
     }
+
     function showConnectedMsg() {
       let div = document.getElementById('connection-msg');
       div.style.display='';
       div.innerText = '서로 연결되었습니다!';
       setTimeout(()=>{div.style.display='none'},3000);
     }
+
     function setupConn(c) {
       c.on('data', msg=>{
         if(msg.type==='deny'){ alert(msg.msg); location.reload(); }
@@ -341,13 +340,13 @@
       const fr = new FileReader();
       fr.onload = function(ev){
         conn.send({type:'file', name: myName, fileName: file.name, data:ev.target.result});
-        chatMsg(`나: <a download="\${file.name}" href="\${ev.target.result}" target="_blank">[\${file.name}] 파일 보내기</a>`, true);
+        chatMsg(`나: <a download="\\${file.name}" href="\\${ev.target.result}" target="_blank">[\\${file.name}] 파일 보내기</a>`, true);
       };
       fr.readAsDataURL(file);
       e.target.value='';
     });
     function receiveFile(msg) {
-      chatMsg(`\${msg.name}: <a download="\${msg.fileName}" href="\${msg.data}" target="_blank">[\${msg.fileName}] 파일 받기</a>`);
+      chatMsg(`\\${msg.name}: <a download="\\${msg.fileName}" href="\\${msg.data}" target="_blank">[\\${msg.fileName}] 파일 받기</a>`);
     }
   </script>
 </body>
