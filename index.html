@@ -246,6 +246,21 @@
             border-left: 1px solid #bdc3c7;
             box-sizing: border-box;
             z-index: 1001; /* 확대 모드보다 위에 */
+            transition: width 0.3s ease;
+            position: relative; /* 자식 버튼 위치용 */
+        }
+        
+        #chat-container.enlarged {
+            width: 600px;
+        }
+        
+        #chat-container.hidden {
+            display: none;
+        }
+        
+        /* 채팅창 숨겨졌을 때 메인 컨텐츠 조정 */
+        #main-content.chat-hidden #video-container {
+            width: 100%;
         }
 
         #chat-header {
@@ -254,6 +269,21 @@
             font-weight: 600;
             border-bottom: 1px solid #ecf0f1;
             color: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #chat-header-buttons button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: #7f8c8d;
+            padding: 0 5px;
+        }
+        #chat-header-buttons button:hover {
+            color: #34495e;
         }
 
         #messages-log {
@@ -391,6 +421,18 @@
             background-color: #c0392b;
         }
         
+        /* 채팅 보이기 버튼 */
+        #show-chat-btn {
+            position: fixed;
+            bottom: 90px; /* 컨트롤 바 위 */
+            right: 20px;
+            z-index: 1002;
+            background-color: #3498db;
+        }
+        #show-chat-btn:hover {
+            background-color: #2980b9;
+        }
+        
         /* 유틸리티 */
         .hidden {
             display: none !important;
@@ -429,26 +471,27 @@
         <!-- 교사 로그인 폼 -->
         <div id="teacher-form" class="login-form">
             <div class="form-group">
-                <label for="teacher-pass">교사 인증 (a123456!)</label>
-                <input type="password" id="teacher-pass">
+                <label for="teacher-pass">교사 인증</label>
+                <input type="password" id="teacher-pass" placeholder="교사 인증 비밀번호 입력">
             </div>
             <button id="teacher-auth-btn" class="btn">인증하기</button>
 
             <!-- 교사 인증 후 표시되는 패널 -->
             <div id="teacher-panel">
                 <div class="form-group">
-                    <label for="teacher-meeting-id">화상 ID (자동 생성됨)</label>
-                    <input type="text" id="teacher-meeting-id" readonly>
+                    <label for="teacher-meeting-id">화상 ID 설정</label>
+                    <input type="text" id="teacher-meeting-id" placeholder="비워두면 자동 생성">
                 </div>
                 <div class="form-group">
                     <label for="teacher-meeting-pass">비밀번호 설정</label>
                     <input type="password" id="teacher-meeting-pass" placeholder="학생이 사용할 비밀번호">
                 </div>
-                <button id="create-btn" class="btn btn-secondary">회의 생성하기</button>
+                <button id="generate-link-btn" class="btn btn-secondary">공유 링크 생성</button>
                 <div class="form-group" style="margin-top: 1rem;">
                     <label>공유용 주소:</label>
-                    <div id="shareable-url">(회의 생성 후 표시됩니다)</div>
+                    <div id="shareable-url">(링크 생성 후 표시됩니다)</div>
                 </div>
+                <button id="start-teacher-meeting-btn" class="btn hidden" style="margin-top: 1rem;">회의 시작하기</button>
             </div>
         </div>
     </div>
@@ -478,7 +521,13 @@
             
             <!-- 채팅창 (우측) -->
             <div id="chat-container">
-                <div id="chat-header">채팅</div>
+                <div id="chat-header">
+                    <span>채팅</span>
+                    <div id="chat-header-buttons">
+                        <button id="toggle-chat-size-btn" title="확대/축소">↔</button>
+                        <button id="hide-chat-btn" title="숨기기">X</button>
+                    </div>
+                </div>
                 <div id="messages-log">
                     <!-- 메시지 동적 추가 -->
                 </div>
@@ -503,6 +552,9 @@
             <button id="end-call-btn" class="control-btn" title="통화 종료">📞</button>
         </div>
     </div>
+    
+    <!-- 채팅 보이기 버튼 (숨겨져 있음) -->
+    <button id="show-chat-btn" class="control-btn hidden" title="채팅 보이기">💬</button>
 
     <script>
         // 전역 변수
@@ -542,6 +594,11 @@
         const remoteVideo = document.getElementById('remote-video');
         const messagesLog = document.getElementById('messages-log');
         const chatInput = document.getElementById('chat-input');
+        
+        // 회의실 UI 요소
+        const mainContent = document.getElementById('main-content');
+        const chatContainer = document.getElementById('chat-container');
+        const showChatBtn = document.getElementById('show-chat-btn');
 
         // --- 1. 로그인 및 초기화 로직 ---
 
@@ -574,9 +631,7 @@
             const pass = document.getElementById('teacher-pass').value;
             if (pass === 'a123456!') {
                 teacherPanel.style.display = 'block';
-                // 교유 ID 생성 (간단하게)
-                currentMeetingId = 'teacher-' + Math.random().toString(36).substr(2, 9);
-                document.getElementById('teacher-meeting-id').value = currentMeetingId;
+                // ID 생성 로직을 '공유 링크 생성' 버튼으로 이동
                 isTeacher = true;
                 myName = '교사';
             } else {
@@ -585,19 +640,33 @@
         };
 
         // 교사: 회의 생성
-        document.getElementById('create-btn').onclick = () => {
+        document.getElementById('generate-link-btn').onclick = () => {
             currentMeetingPass = document.getElementById('teacher-meeting-pass').value;
             if (!currentMeetingPass) {
                 alert('비밀번호를 설정하세요.');
                 return;
             }
             
+            // 화상 ID 설정 (수동 또는 자동)
+            let manualMeetingId = document.getElementById('teacher-meeting-id').value.trim();
+            if (manualMeetingId) {
+                currentMeetingId = manualMeetingId;
+            } else {
+                currentMeetingId = 'teacher-' + Math.random().toString(36).substr(2, 9);
+                document.getElementById('teacher-meeting-id').value = currentMeetingId; // 자동 생성된 ID 표시
+            }
+            
             // 공유 URL 생성
             const url = `${window.location.origin}${window.location.pathname}?id=${currentMeetingId}&pass=${currentMeetingPass}`;
             document.getElementById('shareable-url').textContent = url;
             
-            startMeeting();
+            // '회의 시작하기' 버튼 표시
+            document.getElementById('start-teacher-meeting-btn').classList.remove('hidden');
+            // startMeeting(); // -> 시작 버튼으로 이동
         };
+        
+        // 교사: 회의 시작
+        document.getElementById('start-teacher-meeting-btn').onclick = startMeeting;
 
         // 학생: 회의 참여
         document.getElementById('join-btn').onclick = () => {
@@ -876,6 +945,23 @@
         }
         
         // --- 5. 채팅 및 파일 전송 UI ---
+        
+        // 채팅창 제어
+        document.getElementById('toggle-chat-size-btn').onclick = () => {
+            chatContainer.classList.toggle('enlarged');
+        };
+        
+        document.getElementById('hide-chat-btn').onclick = () => {
+            chatContainer.classList.add('hidden');
+            mainContent.classList.add('chat-hidden');
+            showChatBtn.classList.remove('hidden');
+        };
+        
+        document.getElementById('show-chat-btn').onclick = () => {
+            chatContainer.classList.remove('hidden');
+            mainContent.classList.remove('chat-hidden');
+            showChatBtn.classList.add('hidden');
+        };
         
         // 채팅 메시지 전송
         document.getElementById('send-chat-btn').onclick = sendChatMessage;
